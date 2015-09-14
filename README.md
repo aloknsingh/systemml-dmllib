@@ -18,7 +18,7 @@ some examples:
  sq = square(4.5)
 
  #include "common/tail1.dml"
-```bash
+```
 
  and say the other files contains
 
@@ -32,12 +32,12 @@ some examples:
  shell>cat common/tail1.dml"
  print("Done!")
 
-```bash
+```
 
  One can use
 ```bash
  shell>dmlpp.py -I <include_path> -o code_with_dependencies.dml code.dml ;
-```bash
+```
 
  and it will generate the output, which you can run using the systemml commands
 
