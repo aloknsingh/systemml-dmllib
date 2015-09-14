@@ -1,0 +1,22 @@
+# see the http://arxiv.org/pdf/1304.3800.pdf 
+#		Extremely effiecient method of generating gamma variable.
+# this works with the integer shapes
+# When shape parameter is integer then gamma reduces to erlang distribution. whose samples
+# can be easily calculated as the shape number of iid poisson's process which can be calculated
+# using inverse CDF method
+random_gamma = function (
+	int shape, double scale, int rows, int cols
+) return (matrix[double] G) {
+	
+	U = rand(rows=rows*cols, cols=shape) # uniform RV i.e gen ui ~ U[0,1] ; i:1->rows*cols*alpha
+    Op = matrix(1.0, rows=shape, cols=1) # a operator vector used for doing row-wise sum
+ 
+ 	#since rv ~ Gamma(k, 1/lambda) == rv ~ Erlang(k, lambda) 
+    e_k = shape # erlang's k == gamma's alpha
+    e_lambda = 1/scale # erlang's lambda == gamme's 1/scale
+    E = -(log(U) %*% Op)/e_lambda # Erlang RV see the http://arxiv.org/pdf/1304.3800.pdf 
+    
+    Eo = matrix(E, rows=rows, cols=cols) # reshape as per output
+    
+    G = Eo # since rv ~ Gamma(k, 1/lambda) == rv ~ Erlang(k, lambda) 
+}
