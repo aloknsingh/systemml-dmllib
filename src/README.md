@@ -1,4 +1,5 @@
-urrently we are organizing our libs incrementally. it is still the work in progress
+Currently we are organizing our libs incrementally. it is still the work in progress
+
  the libs are 
 
  algo : algorithms
