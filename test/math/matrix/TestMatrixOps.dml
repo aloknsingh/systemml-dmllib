@@ -1,0 +1,73 @@
+
+ignore = test_mequals()
+ignore = test_mcols()
+ignore = test_mrows()
+
+test_mequals = function() return() {
+  
+  print("running test_mequals")
+  M1=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  M2=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  M3=matrix("1 2 3 4 5 6 7  8 9 10", rows=5, cols=2)
+  M4=matrix("10 2 3 4 5 6 7  8 9 10", rows=5, cols=2)
+
+  res12 = mequals(M1, M2)
+  if (res12 != 1) {
+    stop("failed M1 == M2")
+  }
+
+  res23 = mequals(M2, M3)
+  if (res23 != 0) {
+    stop("failed M2 != M3")
+  }
+
+  res34 = mequals(M3, M4)
+  if (res34 != 0) {
+    stop("failed M3 != M4")
+  }
+
+}
+
+test_mcols = function() return () {
+  print("running test_mcols")
+  M=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+
+  # mcols test
+  C=matrix("2 4", rows=2, cols=1)
+
+  N = mcols(M, C)
+  ignore=printm("M_N", N)
+
+  N_exp = matrix("2 4 7 9", rows=2, cols=2)
+  ignore=printm("M_N_exp", N_exp)
+
+  isequal = mequals(N, N_exp)
+  if (isequal) {
+    print("mcols passed")
+  } else {
+    stop("mcols failed")
+  }
+}
+
+test_mrows = function() return () {
+  print("running test_mrows")
+  # mrows test
+  M=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  R=matrix("1", rows=1, cols=1)
+
+  P = mrows(M, R)
+  ignore=printm("M_P", P)
+
+  P_exp = matrix("1 2 3 4 5", rows=1, cols=5)
+  ignore=printm("M_P_exp", P_exp)
+
+  isequal = mequals(P, P_exp)
+  if (isequal) {
+    print("mrows passed")
+  } else {
+    stop("mrows failed")
+  }
+}
+
+#include "math/matrix/MatrixOps.dml"
+#include "io/io.dml"

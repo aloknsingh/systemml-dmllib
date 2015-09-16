@@ -1,0 +1,54 @@
+# @description: It extracts the specified columns from the matrix
+# @input X: matrix
+# @input cols: mx1 matrix of the column index you would like to extract
+# @output Y: is the output matrix contains the extract columns from X
+mcols = function(
+  matrix[double] X,
+  matrix[double] cols
+) return (matrix[double] Y) {
+   ry = nrow(X)
+   cy = nrow(cols)
+   Y = matrix(0.0, rows=ry, cols=cy)
+   parfor(r in 1:cy) {
+     col2ext = as.scalar(cols[r,1])
+     Y[,r] = X[,col2ext]
+   }
+}
+
+# @description: It extracts the specified rows from the matrix
+# @input X: matrix
+# @input rows: mx1 matrix of the column index you would like to extract
+# @output Y: is the output matrix contains the extract columns from X
+mrows = function(
+  matrix[double] X,
+  matrix[double] rows
+) return (matrix[double] Y) {
+   ry = nrow(rows)
+   cy = ncol(X)
+   Y = matrix(0.0, rows=ry, cols=cy)
+   parfor(r in 1:ry) {
+     row2ext = as.scalar(rows[r,1])
+     Y[r,] = X[row2ext,]
+   }
+}
+
+# @description: It compares if two matrices are cellwise equals. It's a convenient routine
+# @input A, B: matrices to be compared
+# @output isequal: 1 if A==B else 0
+mequals = function(
+  matrix[double] A,
+  matrix[double] B
+) return (int isequal) {
+  if (nrow(A) != nrow(B) | ncol(A) != ncol(B)) {
+    isequal = 0
+  } else {
+    notequal = sum(ppred(A, B, "!="))
+    if (notequal > 0) {
+      isequal = 0
+    } else {
+      isequal =1
+    }
+  }
+}
+
+#include "io/io.dml"
