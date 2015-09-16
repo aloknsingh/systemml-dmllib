@@ -159,6 +159,7 @@ digamma = function (
 
   #case 4: z = (1e-5, 49) U (0, -inf) # note we don't take into account the negative numbers
   slZPred1 = (1-S_LimPred)*(1-C_LimPred)
+  sl_Psi = matrix(0.0, rows=r, cols=c)
   if (sum(slZPred1) >= 1) {
     slZPred = replace(target=slZPred1, pattern=0, replacement=NaN)
     sl_Z = Z*slZPred
@@ -252,6 +253,7 @@ digamma_ok = function (
 
   #case 4: z = (1e-5, 49) U (0, -inf) # note we don't take into account the negative numbers
   slZPred1 = (1-S_LimPred)*(1-C_LimPred)
+  sl_Psi = matrix(0.0, rows=r, cols=c)
   if (sum(slZPred1) >= 1) {
     slZPred = replace(target=slZPred1, pattern=0, replacement=NaN)
     sl_Z = Z*slZPred
