@@ -1,0 +1,8 @@
+
+# power for the positve base for scalar
+pows = function(
+	double rplus, double exponent
+) return (double ans) {
+  ans = exp(exponent*log(rplus))
+}
+
