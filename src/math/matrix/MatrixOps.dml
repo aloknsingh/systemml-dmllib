@@ -51,4 +51,23 @@ mequals = function(
   }
 }
 
+#@description: dot product of two matrix
+#  We assume that columns represent the vectors
+#@input A: the first vector or the list of vectors represented as cols of matrix .dim==(mxn)
+#@input B: the second vector or the list of vectors represented as the cols of matrix. dim == (mxr)
+#@output D: the dot product tranpose(A) %*% B. dim = (nxr)
+mdot = function(
+ matrix[double] A,
+ matrix[double] B
+) return (matrix[double] D) {
+   ra = nrow(A); ca = ncol(A)
+   rb = nrow(B); cb = ncol(B)
+
+   if (ra != rb) {
+     stop("FATAL: mdot => matrix A(" + ra + "x" + ca + ") and B(" + rb + "x" + cb + ") doesn't align")
+   }
+
+   D = t(A) %*% B
+}
+
 #include "io/io.dml"

@@ -2,6 +2,7 @@
 ignore = test_mequals()
 ignore = test_mcols()
 ignore = test_mrows()
+ignore=test_mdot()
 
 test_mequals = function() return() {
   
@@ -68,6 +69,30 @@ test_mrows = function() return () {
     stop("mrows failed")
   }
 }
+
+#@description: test code for matrix dot products
+test_mdot = function() return () {
+  print("running test_mdot")
+
+  expElogthetad = matrix("0.38122031  0.32534496", rows=2, cols=1)
+  ignore=printm("M_expElogthetad", expElogthetad)
+
+  expElogbetad = matrix("0.11654062  0.13499789  0.10653695  0.12223767  0.14378144 0.15303758  0.10944634  0.12849357  0.09510771  0.12477721", rows=2, cols=5)
+  ignore=printm("M_expElogbetad", expElogbetad)
+
+  phinorm = mdot(expElogthetad, expElogbetad)
+  ignore=printm("M_phinorm", phinorm)
+
+  phinorm_exp = matrix("0.09421765662758899 0.08707175258459231 0.0824187844973617 0.0775422965567193 0.09540804152540801", rows=1, cols=5)
+
+  isequal = mequals(phinorm, phinorm_exp)
+  if (isequal) {
+    print("passed test_mdot")
+  } else {
+    print("failed test_mdot")
+  }
+}
+
 
 #include "math/matrix/MatrixOps.dml"
 #include "io/io.dml"
