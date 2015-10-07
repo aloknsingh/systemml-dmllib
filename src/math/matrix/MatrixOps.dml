@@ -1,20 +1,59 @@
+
 # @description: It extracts the specified columns from the matrix
 # @input X: matrix
 # @input cols: mx1 matrix of the column index you would like to extract
 # @output Y: is the output matrix contains the extract columns from X
+
 mcols = function(
   matrix[double] X,
   matrix[double] cols
 ) return (matrix[double] Y) {
-   ry = nrow(X)
-   cy = nrow(cols)
-   Y = matrix(0.0, rows=ry, cols=cy)
-   parfor(r in 1:cy) {
-     col2ext = as.scalar(cols[r,1])
-     Y[,r] = X[,col2ext]
-   }
+   P= table(seq(1, nrow(cols)), cols, nrow(cols), ncol(X))
+   Y = X %*% t(P)
 }
 
+# @description: It aligns the columns of X as per the colsOrder.It appends zeros so as to have maxCols.
+#               maxCols >= ncol(X) 
+# @input X: input matrix
+# @input colsOrder: the vector containing the indices of the matrices 
+# @output Y: aligned output matrix
+maligncols = function(
+  matrix[double] X,
+  matrix[double] colsOrder,
+  int maxCols,
+  string by
+) return (matrix[double] Y) {
+   if (nrow(colsOrder) != ncol(X)) {
+      stop("mshufflerows: cols and B doesn't align")
+   }
+   P=table(seq(1, nrow(colsOrder)), colsOrder, nrow(colsOrder), maxCols)
+   #ignore=printm("M_P", P)
+   Y = X %*% P
+
+}
+
+
+
+#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
+# multiply to X*Is
+# @description: It extracts the specified columns from the matrix
+# @input X: matrix
+# @input cols: mx1 matrix of the column index you would like to extract
+# @output Y: is the output matrix contains the extract columns from X
+# mcols_pf = function(
+#   matrix[double] X,
+#   matrix[double] cols
+# ) return (matrix[double] Y) {
+#    ry = nrow(X)
+#    cy = nrow(cols)
+#    Y = matrix(0.0, rows=ry, cols=cy)
+#    parfor(r in 1:cy) {
+#      col2ext = as.scalar(cols[r,1])
+#      Y[,r] = X[,col2ext]
+#    }
+# }
+
+#@TODO implement it using the multiplication
 # @description: It extracts the specified rows from the matrix
 # @input X: matrix
 # @input rows: mx1 matrix of the column index you would like to extract
@@ -30,6 +69,58 @@ mrows = function(
      row2ext = as.scalar(rows[r,1])
      Y[r,] = X[row2ext,]
    }
+}
+
+#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
+# multiply to X*Is
+# @description: It sets the specified columns from the matrix B to the matrix A
+# @input A: matrix whose columns need to be set
+# @input B: the matrix from which the columns will be set in A
+# @input cols: mx1 matrix of the column index you would like to extract from B
+# @output Y: is the output matrix contains the columns from B and the remaining columns from A
+msetcols = function(
+  matrix[double] A,
+  matrix[double] B,
+  matrix[double] cols
+) return (matrix[double] Y) {
+   ry = nrow(A)
+   cy = nrow(cols)
+   if (nrow(cols) != ncol(B)) {
+      stop("msetrows: rows and B doesn't align")
+   }
+   i = 1
+   for(r in 1:cy) {
+     col2ext = as.scalar(cols[r,1])
+     A[,col2ext] = B[,i]
+     i = i + 1
+   }
+   Y = A
+}
+
+#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
+# multiply to X*Is
+# @description: It sets the specified rows from matrix B to matrix A
+# @input A: matrix whose columns need to be set
+# @input B: the matrix from which the columns will be set in A
+# @input rows: mx1 matrix of the column index you would like to extract from B
+# @output Y: is the output matrix contains the columns from B and the remaining columns from A
+msetrows = function(
+  matrix[double] A,
+  matrix[double] B,
+  matrix[double] rows
+) return (matrix[double] Y) {
+   ry = nrow(A)
+   cy = nrow(rows)
+   if (nrow(rows) != nrow(B)) {
+      stop("msetrows: rows and B doesn't align")
+   }
+   i = 1
+   for(r in 1:cy) {
+     row2ext = as.scalar(rows[r,1])
+     A[row2ext,] = B[i,]
+     i = i + 1
+   }
+   Y = A
 }
 
 # @description: It compares if two matrices are cellwise equals. It's a convenient routine

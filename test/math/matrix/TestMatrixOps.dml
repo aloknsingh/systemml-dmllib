@@ -2,7 +2,9 @@
 ignore = test_mequals()
 ignore = test_mcols()
 ignore = test_mrows()
-ignore=test_mdot()
+ignore = test_msetcols()
+ignore = test_msetrows()
+ignore = test_mdot()
 
 test_mequals = function() return() {
   
@@ -26,10 +28,11 @@ test_mequals = function() return() {
   if (res34 != 0) {
     stop("failed M3 != M4")
   }
-
+  print("mequals test passed")
+  print("____________________________")
 }
 
-test_mcols = function() return () {
+test_mcols2 = function() return () {
   print("running test_mcols")
   M=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
 
@@ -48,7 +51,63 @@ test_mcols = function() return () {
   } else {
     stop("mcols failed")
   }
+  print("____________________________")
 }
+
+test_mcols = function() return() 
+{
+  print("running test_mcols")
+  M=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  
+  #case 1
+  C=matrix("2 4", rows=2, cols=1)
+  N_exp = matrix("2 4 7 9", rows=2, cols=2)
+  ignore=test_mcols_impl(M, C, N_exp)
+  print("____________________________")
+  
+  #case 2
+  C=matrix("4", rows=1, cols=1)
+  N_exp = matrix("4 9", rows=2, cols=1)
+  ignore=test_mcols_impl(M, C, N_exp)
+  print("____________________________")
+
+  #case 3
+  C=matrix("2 4 5", rows=3, cols=1)
+  N_exp = matrix("2 4 5 7 9 10", rows=2, cols=3)
+  ignore=test_mcols_impl(M, C, N_exp)
+  print("____________________________")
+
+  #case 4
+  C=matrix("1 2 3 4 5", rows=5, cols=1)
+  N_exp = matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  ignore=test_mcols_impl(M, C, N_exp)
+  print("____________________________")
+
+  print("============================") 
+}
+
+test_mcols_impl = function(
+  matrix[double] M,
+  matrix[double] C,
+  matrix[double] N_exp
+) return () {
+  print("running test_mcols")
+  ignore=printm("M_M", M)
+  # mcols test
+  ignore=printm("M_C", C)
+
+  N = mcols(M, C)
+  ignore=printm("M_N", N)
+  
+  ignore=printm("M_N_exp", N_exp)
+  isequal = mequals(N, N_exp)
+  if (isequal) {
+    print("mcols passed")
+  } else {
+    stop("mcols failed")
+  }
+}
+
 
 test_mrows = function() return () {
   print("running test_mrows")
@@ -68,6 +127,98 @@ test_mrows = function() return () {
   } else {
     stop("mrows failed")
   }
+  print("____________________________")
+}
+
+test_msetcols = function() return () {
+  print("running test_mcols")
+  M=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  N=matrix("20 30 40 60", rows=2, cols=2)
+  # mcols test
+  C=matrix("2 4", rows=2, cols=1)
+
+  MN = msetcols(M, N, C)
+  ignore=printm("M_MN", MN)
+
+  MN_exp = matrix("1 20 3 30 5 6 40  8 60 10", rows=2, cols=5)
+  ignore=printm("M_MN_exp", MN_exp)
+
+  isequal = mequals(MN, MN_exp)
+  if (isequal) {
+    print("msetcols passed")
+  } else {
+    stop("msetcols failed")
+  }
+  print("____________________________")
+}
+
+
+test_msetrows = function() return () {
+  print("running test_msetrows")
+  M=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  N=matrix("20 30 40 60 100", rows=1, cols=5)
+  # mcols test
+  C=matrix("1", rows=1, cols=1)
+
+  MN = msetrows(M, N, C)
+  ignore=printm("M_MN", MN)
+
+  MN_exp = matrix("20 30 40 60 100 6 7 8 9 10", rows=2, cols=5)
+  ignore=printm("M_MN_exp", MN_exp)
+
+  isequal = mequals(MN, MN_exp)
+  if (isequal) {
+    print("msetcols passed")
+  } else {
+    stop("msetcols failed")
+  }
+  print("____________________________")
+}
+
+
+test_maligncols = function() return () {
+  print("running test_maligncols")
+  # case 1
+  M=matrix("20 30 40 60", rows=2, cols=2)
+  C=matrix("2 4", rows=2, cols=1)
+  SM_exp = matrix("0 20 0 30 0 0 40 0 60 0", rows=2, cols=5)
+  maxCols = 5
+  ignore=test_maligncols_impl(M, C, maxCols, SM_exp)
+
+  # case 2
+  M=matrix("20 30 100 40 60 120", rows=2, cols=3)
+  C=matrix("2 4 5", rows=3, cols=1)
+  SM_exp = matrix("0 20 0 30 100 0 40 0 60 120", rows=2, cols=5)
+  maxCols = 5
+  ignore=test_maligncols_impl(M, C, maxCols, SM_exp)
+
+  print("=============================")
+}
+
+test_maligncols_impl = function(
+  matrix[double] M,
+  matrix[double] C,
+  int maxCols,
+  matrix[double] SM_exp
+) return ()
+{
+  print("running test_maligncols_impl")
+  ignore=printm("M_M", M)
+  # mcols test
+  ignore=printm("M_C", C)
+
+  SM = maligncols(M, C, maxCols, "cols")
+  ignore=printm("M_MN", SM)
+
+  ignore=printm("M_SM_exp", SM_exp)
+
+  isequal = mequals(SM, SM_exp)
+  if (isequal) {
+    print("maligncols passed")
+  } else {
+    stop("maligncols failed")
+  }
+  print("____________________________")
 }
 
 #@description: test code for matrix dot products
@@ -91,6 +242,7 @@ test_mdot = function() return () {
   } else {
     print("failed test_mdot")
   }
+  print("____________________________")
 }
 
 

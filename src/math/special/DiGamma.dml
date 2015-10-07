@@ -89,7 +89,7 @@ sdigamma_it = function (
 
 
 #parallel DiGamma function
-
+#@NOTE: it future systemML will support the apply() operations on the matrix and we can implement it with it
 # this implementation uses the parallel for . Not that efficient.
 pf_digamma = function (
         matrix[double] Z
