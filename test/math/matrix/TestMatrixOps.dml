@@ -109,26 +109,60 @@ test_mcols_impl = function(
 }
 
 
-test_mrows = function() return () {
+test_mrows = function() return()
+{
   print("running test_mrows")
-  # mrows test
-  M=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
-  R=matrix("1", rows=1, cols=1)
+  M=matrix("1 2 3 4 5 6 7  8 9 10", rows=5, cols=2)
 
-  P = mrows(M, R)
-  ignore=printm("M_P", P)
+  #case 1
+  C=matrix("2 4", rows=2, cols=1)
+  N_exp = matrix("3 4 7 8", rows=2, cols=2)
+  ignore=test_mrows_impl(M, C, N_exp)
+  print("____________________________")
 
-  P_exp = matrix("1 2 3 4 5", rows=1, cols=5)
-  ignore=printm("M_P_exp", P_exp)
+  #case 2
+  C=matrix("4", rows=1, cols=1)
+  N_exp = matrix("7 8", rows=1, cols=2)
+  ignore=test_mrows_impl(M, C, N_exp)
+  print("____________________________")
 
-  isequal = mequals(P, P_exp)
+  #case 3
+  C=matrix("2 4 5", rows=3, cols=1)
+  N_exp = matrix("3 4 7 8 9 10", rows=3, cols=2)
+  ignore=test_mrows_impl(M, C, N_exp)
+  print("____________________________")
+
+  #case 4
+  C=matrix("1 2 3 4 5", rows=5, cols=1)
+  N_exp = matrix("1 2 3 4 5 6 7  8 9 10", rows=5, cols=2)
+  ignore=test_mrows_impl(M, C, N_exp)
+  print("____________________________")
+
+  print("============================")
+}
+
+test_mrows_impl = function(
+  matrix[double] M,
+  matrix[double] C,
+  matrix[double] N_exp
+) return () {
+  print("running test_mrows")
+  ignore=printm("M_M", M)
+  # mcols test
+  ignore=printm("M_C", C)
+
+  N = mrows(M, C)
+  ignore=printm("M_N", N)
+ 
+  ignore=printm("M_N_exp", N_exp)
+  isequal = mequals(N, N_exp)
   if (isequal) {
     print("mrows passed")
   } else {
     stop("mrows failed")
   }
-  print("____________________________")
 }
+
 
 test_msetcols = function() return () {
   print("running test_mcols")

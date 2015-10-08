@@ -2,7 +2,7 @@
 # @description: It extracts the specified columns from the matrix
 # @input X: matrix
 # @input cols: mx1 matrix of the column index you would like to extract
-# @output Y: is the output matrix contains the extract columns from X
+# @output Y: is the output matrix contains the extracted columns from X
 
 mcols = function(
   matrix[double] X,
@@ -32,43 +32,16 @@ maligncols = function(
 
 }
 
-
-
-#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
-# multiply to X*Is
-# @description: It extracts the specified columns from the matrix
-# @input X: matrix
-# @input cols: mx1 matrix of the column index you would like to extract
-# @output Y: is the output matrix contains the extract columns from X
-# mcols_pf = function(
-#   matrix[double] X,
-#   matrix[double] cols
-# ) return (matrix[double] Y) {
-#    ry = nrow(X)
-#    cy = nrow(cols)
-#    Y = matrix(0.0, rows=ry, cols=cy)
-#    parfor(r in 1:cy) {
-#      col2ext = as.scalar(cols[r,1])
-#      Y[,r] = X[,col2ext]
-#    }
-# }
-
-#@TODO implement it using the multiplication
 # @description: It extracts the specified rows from the matrix
 # @input X: matrix
 # @input rows: mx1 matrix of the column index you would like to extract
-# @output Y: is the output matrix contains the extract columns from X
+# @output Y: is the output matrix contains the extracted rows from X
 mrows = function(
   matrix[double] X,
   matrix[double] rows
 ) return (matrix[double] Y) {
-   ry = nrow(rows)
-   cy = ncol(X)
-   Y = matrix(0.0, rows=ry, cols=cy)
-   parfor(r in 1:ry) {
-     row2ext = as.scalar(rows[r,1])
-     Y[r,] = X[row2ext,]
-   }
+   P= table(seq(1, nrow(rows)), rows, nrow(rows), nrow(X))
+   Y = P %*% X
 }
 
 #@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
