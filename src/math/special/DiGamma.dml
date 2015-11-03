@@ -23,6 +23,10 @@
 * 
 */
 
+#@NOTE, @TODO: in future, systemml will have ability to apply arbitary function to matrix cell
+# wise and we can use that to simplify our gamma parallel implemnetation
+
+
 
 # non parallel DiGamma function. 
 sdigamma  = function (
@@ -105,9 +109,11 @@ pf_digamma = function (
     }
   }
 }    
+
+
+
 # this will not work great i.e errors may be big with the negative numbers
 #assumption: The input matrix doesn't contain NaN or Inf
-
 digamma = function (
         matrix[double] Z
 ) return (matrix[double] Psi) {
@@ -202,97 +208,4 @@ digamma = function (
   
 }
 
-digamma_ok = function (
-        matrix[double] Z
-) return (matrix[double] Psi) {
-
-  GAMMA = 0.577215664901532860606512090082 #euler's constant
-  C_LIMIT = 49.0;
-  S_LIMIT = 1e-5;
-  Infp = 1.0/0.0
-  Infn = -1.0/0.0
-  NaN = 0.0/0.0
-
-  r = nrow(Z)
-  c = ncol(Z)
-
-  NaNPred = ppred(Z, NaN, "==");
-  InfpPred = ppred(Z, Infp, "==");
-  InfnPred = ppred(Z, Infn, "==");
-  GtzPred = ppred(Z, 0.0, ">=");
-  S_LimPred = ppred(Z, S_LIMIT, "<=");
-  C_LimPred = ppred(Z, C_LIMIT, ">=");
-
-  # case 1 
-  noChangePred = InfpPred + InfnPred + NaNPred
-  sumNoChangePred = sum(noChangePred)
-  if (sumNoChangePred != 0.0) {
-    stop("parallel digamma input contains Nan or Inf or -Inf")
-  }
-  
-
-  #case 2: z = (0, 1e-5]
-  smZPred1 = GtzPred*S_LimPred
-  sm_Psi = matrix(0.0, rows=r, cols=c)
-  if (sum(smZPred1) >= 1) {
-    smZPred = replace(target=smZPred1, pattern=0, replacement=NaN)
-    sm_Z = Z*smZPred
-    sm_Psi = -GAMMA - 1 / sm_Z;
-  }
-  #ignore = printm("M_sm_Psi", sm_Psi) # DEBUG
-
-  #case 3: z = [49, inf)
-  lgZPred = C_LimPred
-  lg_Psi = matrix(0.0, rows=r, cols=c)
-  if (sum(lgZPred) >= 1) {
-    lg_Z = Z*lgZPred
-    lg_inv = 1/(lg_Z*lg_Z)
-    lg_Psi = log(lg_Z) - 0.5 / lg_Z - lg_inv * ((1.0 / 12) + lg_inv * (1.0 / 120 - lg_inv / 252))
-  }
-  #ignore = printm("M_lg_Psi", lg_Psi) # DEBUG
-
-  #case 4: z = (1e-5, 49) U (0, -inf) # note we don't take into account the negative numbers
-  slZPred1 = (1-S_LimPred)*(1-C_LimPred)
-  sl_Psi = matrix(0.0, rows=r, cols=c)
-  if (sum(slZPred1) >= 1) {
-    slZPred = replace(target=slZPred1, pattern=0, replacement=NaN)
-    sl_Z = Z*slZPred
-   
-    # transform the problem in 1D
-    sl_Z1D = matrix(sl_Z, rows=r*c, cols=1)
-   
-    # calculate the corresponding n sum
-    maxN = C_LIMIT
-    G = matrix(0, rows=nrow(sl_Z1D), cols=maxN)
-    parfor(i in 1:nrow(sl_Z1D)) {
-      s = seq(0, maxN-1, 1)
-      ts = t(s)
-      ts_sum = as.scalar(rowSums(ts))
-      #print("pgamma i = "+i+";ts_sum="+ts_sum)
-      #write(ts, "tmp_s"+i+".mtx")
-      G[i,] = 1/(ts + sl_Z1D[i,1])
-    }
-    S = rowSums(G)
-    
-    # new z
-    sl_Z1D = sl_Z1D + maxN
-    sl_inv = 1/(sl_Z1D*sl_Z1D)
-    
-    ZnPsi = log(sl_Z1D) - 0.5 / sl_Z1D - sl_inv * ((1.0 / 12) + sl_inv * (1.0 / 120 - sl_inv / 252))
-    
-    sl_Psi_1D = ZnPsi - S
-    
-    # convert back to org dims
-    sl_Psi = matrix(sl_Psi_1D, rows=r, cols=c)
-  }
-  #ignore = printm("M_sl_Psi", sl_Psi) # DEBUG
-  
-  # aggregate the sub results
-  c_sm_Psi = replace(target=sm_Psi, pattern=NaN, replacement=0.0)
-  c_lg_Psi = replace(target=lg_Psi, pattern=NaN, replacement=0.0)
-  c_sl_Psi = replace(target=sl_Psi, pattern=NaN, replacement=0.0)
-  
-  Psi = c_sm_Psi + c_lg_Psi + c_sl_Psi
-  
-}
 

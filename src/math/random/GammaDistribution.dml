@@ -4,7 +4,7 @@
 # When shape parameter is integer then gamma reduces to erlang distribution. whose samples
 # can be easily calculated as the shape number of iid poisson's process which can be calculated
 # using inverse CDF method
-random_gamma = function (
+rgamma = function (
 	int shape, double scale, int rows, int cols
 ) return (matrix[double] G) {
 	
