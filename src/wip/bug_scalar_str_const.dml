@@ -1,0 +1,54 @@
+
+printm = function(string name, matrix[double] M) return (matrix[double] M) {
+  print("printing matrix = " + name)
+  for (i in 1:nrow(M)) {
+    for (j in 1:ncol(M)) {
+       e = as.scalar(M[i,j])
+       print(" " + i + " " + j + " " + e)
+    }
+  }
+  print("done printing matrix = " + name)
+  M = M
+}
+
+as_str = function(string name) return (string name) {
+  name = name
+}
+
+
+inf = 1.0/0.0
+nan = 0.0/0.0
+
+MM=matrix(inf, rows=2, cols=2)
+
+PP1=ppred(MM, inf, "!=")
+
+pp1_str_via_func = as_str("PP1")
+pp1_str_via_const = "PP1"
+
+
+# doesn't work
+ignore=printm(pp1_str_via_const, PP1)
+
+
+# work
+ignore=printm(pp1_str_via_func, PP1)
+
+
+/* 
+#ERROR message
+Caused by: com.ibm.bi.dml.runtime.DMLRuntimeException: ERROR: Runtime error in program block generated from statement block between lines 3 and 3 -- Error evaluating instruction: CP°+°printing matrix = ·SCALAR·STRING·true°name·SCALAR·STRING·false°_Var18·SCALAR·STRING
+	at com.ibm.bi.dml.runtime.controlprogram.ProgramBlock.executeSingleInstruction(ProgramBlock.java:338)
+	at com.ibm.bi.dml.runtime.controlprogram.ProgramBlock.executeInstructions(ProgramBlock.java:225)
+	at com.ibm.bi.dml.runtime.controlprogram.ProgramBlock.execute(ProgramBlock.java:167)
+	at com.ibm.bi.dml.runtime.controlprogram.FunctionProgramBlock.execute(FunctionProgramBlock.java:103)
+	... 9 more
+Caused by: java.lang.ClassCastException: com.ibm.bi.dml.runtime.controlprogram.caching.MatrixObject cannot be cast to com.ibm.bi.dml.runtime.instructions.cp.ScalarObject
+	at com.ibm.bi.dml.runtime.controlprogram.context.ExecutionContext.getScalarInput(ExecutionContext.java:218)
+	at com.ibm.bi.dml.runtime.instructions.cp.ScalarScalarArithmeticCPInstruction.processInstruction(ScalarScalarArithmeticCPInstruction.java:45)
+	at com.ibm.bi.dml.runtime.controlprogram.ProgramBlock.executeSingleInstruction(ProgramBlock.java:307)
+	... 12 more
+
+#COMMETN: the compiler when passed the name of the matrix var as PP1 and also the string constant name as "PP1" it gets it mixed up and try to convert the PP1 to string "PP1"
+Note that it will work if we change the string contants to anything else say "PP2"
+*/

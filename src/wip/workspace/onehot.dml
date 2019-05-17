@@ -1,0 +1,59 @@
+printm_raw = function(matrix[double] M) return (matrix[double] M) {
+  if (nrow(M)*ncol(M) >= 100*100) {
+     stop("print_raw => Matrix is too big to print in stdout! Aborting ... s")
+  }
+  for (i in 1:nrow(M)) {
+    for (j in 1:ncol(M)) {
+       e = as.scalar(M[i,j])
+       print(" " + i + " " + j + " " + e)
+    }
+  }
+  M = M
+}
+
+printm = function(string name, matrix[double] M) return (matrix[double] M) {
+  print("printing matrix = " + name)
+  ignore = printm_raw(M)
+  print("done printing matrix = " + name)
+  M = M
+}
+
+
+  # encode dml function for one hot encoding
+  encode_onehot = function(matrix[double] X) return(matrix[double] Y) {
+    N = nrow(X)
+    Y = table(seq(1, N, 1), X)
+    dummy = printm("Y_1", Y)
+  }
+  # a dummy read, which allows sysML to attach variables
+  X = read("") 
+
+  X = matrix("4 5 2", rows=3, cols=1)
+  X = matrix("4 10 5 20 2 30", rows=3, cols=2)
+  X = matrix("111 4 10 111 5 20 111 2 30", rows=3, cols=3)
+
+  col_idx = $onehot_index
+  
+  nc = ncol(X)
+  if (col_idx < 1 | col_idx > nc) {
+    stop("one hot index out of range")
+  }
+  Y = matrix(0, rows=1, cols=1)
+  oneHot = encode_onehot(X[,col_idx:col_idx])
+  if (col_idx == 1) {
+    if (col_idx < nc) {
+      X_tmp = X[, col_idx+1:nc]
+      Y = append(oneHot, X_tmp)
+    } else {
+      Y = oneHot
+    }
+  } else if (1 < col_idx & col_idx < nc) {
+    Y = append(append(X[,1:col_idx-1], oneHot), X[, col_idx+1:nc])
+  } else { # col_idx == nc
+    Y = append(X[,1:col_idx-1], oneHot)
+  }
+  # a dummy write, which allows sysML to attach varibles 
+  write(Y, "onehot.mtx")
+  
+
+

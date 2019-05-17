@@ -1,0 +1,23 @@
+string_func_doesnt_work = function(String name, matrix[double] M) return (matrix[double] M) {
+  print("printing matrix = " + name)
+  for (i in 1:nrow(M)) {
+    for (j in 1:ncol(M)) {
+       e = as.scalar(M[i,j])
+       print(" " + i + " " + j + " " + e)
+    }
+  }
+  print("done printing matrix = " + name)
+  M = M
+}
+
+s = function(String name) return (String name) {
+  name = name
+}
+
+
+MM=matrix(1.0, rows=2, cols=2)
+#s1 = s("PP1")
+s1 = "PP1"
+PP1=string_func_doesnt_work(s1, MM)
+PP1=string_func_doesnt_work("PP2", MM)
+

@@ -1,0 +1,33 @@
+linear_regression=function(Matrix[double] A) return(double AIC, Matrix[double] beta_out) 
+{ 
+  AIC = 3
+  beta_out = A+1 # just return dummy output
+}
+
+m_orig=5
+A = matrix(1, rows=2, cols=1)
+beta_out_all = matrix(0, rows=nrow(A), cols=m_orig*ncol(A))
+
+beta_size = ncol(A)
+# create the structure to be used later
+#note size of all betas are same 
+parfor (i in 1:m_orig, check = 0) {
+  #columns_fixed_ordered[1, 1] = i;
+  A_i = A+i
+  [AIC, beta_out_i] = linear_regression (A_i);
+  #AICs[1, i] = AIC;
+  beta_out_all[,(i-1)*beta_size+1:i*beta_size] = beta_out_i
+}  
+
+#extract the beta_best
+
+#find the best idx: 1->m_orig for which AIC is best
+#for() {
+# if () {
+# }
+#}
+beta_best=3
+beta_out=beta_out_all[,(beta_best-1)*beta_size+1: beta_best*beta_size] 
+write(beta_out, "m_A.mtx")
+
+

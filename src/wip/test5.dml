@@ -1,0 +1,541 @@
+#test cumsum
+A = matrix("1 2 3 4 5 6", rows=1, cols=6)
+s = cumsum(A)
+
+#test aggregate
+X = matrix("1 2 3 4 5 6", rows=6, cols=1)
+G = matrix("1 2 2 2 2 1", rows=6, cols=1)
+F = aggregate(target=X, groups=G, fn="sum")
+
+
+
+#digamma impl
+# it needs a large number of sum and doesn't converges fast so ignore it
+digamma_series = function (
+	double z
+) return (double psi) {
+	#gamma = 0.5772156649015328606065120900824024310421 # euler's constant
+	gamma = 0.577215664901532860606512090082 #euler's constant
+	# parallelize it later
+	n = 1000 # number of entry in the infinite series
+	v1ToN = seq(0, n-1, 1)
+        write(v1ToN, "tmp_v1toN.mtx")
+	sigma = 1/(v1ToN + 1) - 1/(v1ToN+z)
+	#sigma = 1/(v1ToN + 1) 
+        write(sigma, "tmp_sigma.mtx")
+
+	sigma_grps = matrix(1, rows=n, cols=1)
+	S = -gamma + aggregate(target=sigma, groups=sigma_grps, fn="sum")
+        psi = as.scalar(S)
+}
+
+digamma = function (
+        double z
+) return (double psi) {
+
+  GAMMA = 0.577215664901532860606512090082 #euler's constant
+  C_LIMIT = 49;
+  S_LIMIT = 1e-5;
+  Infp = 1.0/0.0
+  Infn = -1.0/0.0
+  NaN = 0.0/0.0
+
+  if ( (z == Infp) | (z == Infn) | (z == NaN) ) {
+    psi = z
+  } else if( 0 < z & z <= S_LIMIT) {
+    # use method 5 from Bernardo AS103
+    # accurate to O(x)
+    psi = -GAMMA - 1 / z;
+  } else if (z >= C_LIMIT) {
+    inv = 1/(z*z)
+    psi = log(z) - 0.5 / z - inv * ((1.0 / 12) + inv * (1.0 / 120 - inv / 252))
+  } else { #S_LIMIT < z < C_LIMIT
+    psi_1 = digamma(z + 1)
+    psi = psi_1 - 1 / z
+  }
+}
+
+# this will not work great with the negative numbers
+digamma_it_ok = function (
+        double z
+) return (double psi) {
+
+  GAMMA = 0.577215664901532860606512090082 #euler's constant
+  C_LIMIT = 49;
+  S_LIMIT = 1e-5;
+  Infp = 1.0/0.0
+  Infn = -1.0/0.0
+  NaN = 0.0/0.0
+
+  if ( (z == Infp) | (z == Infn) | (z == NaN) ) {
+    psi = z
+  } else if( 0 < z & z <= S_LIMIT) {
+    # use method 5 from Bernardo AS103
+    # accurate to O(x)
+    psi = -GAMMA - 1 / z;
+  } else if (z >= C_LIMIT) {
+    inv = 1/(z*z)
+    psi = log(z) - 0.5 / z - inv * ((1.0 / 12) + inv * (1.0 / 120 - inv / 252))
+  } else { #S_LIMIT < z < C_LIMIT plus negative numbers
+    n = ceil(C_LIMIT-z)
+    seq = seq(0, n-1, 1)
+    sseq = as.scalar(colSums(seq))
+    write(seq, "tmp_seq.mtx")
+    s = as.scalar(colSums(1/(seq+z)))
+    write(s, "tmp_s.mtx")
+    zn = n + z
+    print ("digamma_it: n = "+n+"; z = "+z+";(s)("+nrow(seq)+","+ncol(seq)+")="+sseq)
+
+    inv = 1/(zn*zn)
+    #zn_psi = 0.0
+    zn_psi = log(zn) - 0.5 / zn - inv * ((1.0 / 12) + inv * (1.0 / 120 - inv / 252))
+    # print("n="+n + ";s="+s + ";zn_psi="+zn_psi)
+    psi = zn_psi - s
+    #psi = 0.0
+  }
+}
+
+# this will not work great with the negative numbers
+digamma_it = function (
+        double z
+) return (double psi) {
+
+  GAMMA = 0.577215664901532860606512090082 #euler's constant
+  C_LIMIT = 49;
+  S_LIMIT = 1e-5;
+  Infp = 1.0/0.0
+  Infn = -1.0/0.0
+  NaN = 0.0/0.0
+
+  if ( (z == Infp) | (z == Infn) | (z == NaN) ) {
+    psi = z
+  } else if( 0 < z & z <= S_LIMIT) {
+    # use method 5 from Bernardo AS103
+    # accurate to O(x)
+    psi = -GAMMA - 1 / z;
+  } else if (z >= C_LIMIT) {
+    inv = 1/(z*z)
+    psi = log(z) - 0.5 / z - inv * ((1.0 / 12) + inv * (1.0 / 120 - inv / 252))
+  } else { #S_LIMIT < z < C_LIMIT plus negative numbers
+    n = ceil(C_LIMIT-z)
+    n = 49
+    seq = seq(0, n-1, 1)
+    sseq = as.scalar(colSums(seq))
+    write(seq, "tmp_seq.mtx")
+    write(sseq, "tmp_sseq.mtx")
+    s = as.scalar(colSums(1/(seq+z)))
+    write(s, "tmp_s.mtx")
+    zn = n + z
+    print ("digamma_it: n = "+n+"; z = "+z+";(s)("+nrow(seq)+","+ncol(seq)+")="+sseq)
+
+    inv = 1/(zn*zn)
+    #zn_psi = 0.0
+    zn_psi = log(zn) - 0.5 / zn - inv * ((1.0 / 12) + inv * (1.0 / 120 - inv / 252))
+    # print("n="+n + ";s="+s + ";zn_psi="+zn_psi)
+    psi = zn_psi - s
+    #psi = 0.0
+  }
+}
+
+
+gamma_lancoz = function (
+        double z
+) return (double gamma) {
+  cf0 = 1.000000000178
+  cf1 = 76.180091729406
+  cf2 = -86.505320327112
+  cf3 = 24.014098222230
+  cf4 = -1.231739516140
+  cf5 = 0.001208580030
+  cf6 = -0.000005363820
+
+  a_5 = cf0 + cf1 / (z + 1) + cf2 / (z + 2) + cf3 / (z + 3)
+          + cf4 / (z + 4) + cf5 / (z + 5) + cf6 / (z + 6)
+
+  
+  gamma = log(a_5) + (z + 0.5) * log(z + 5.5) - (z + 5.5) + 0.91893853320467 # log(sqrt(2 * PI))
+
+}
+
+digamma_lancoz = function (
+        double z
+) return (double psi) {
+  cf0 = 1.000000000178
+  cf1 = 76.180091729406
+  cf2 = -86.505320327112
+  cf3 = 24.014098222230
+  cf4 = -1.231739516140
+  cf5 = 0.001208580030
+  cf6 = -0.000005363820
+
+  a_5 = cf0 + cf1 / (z + 1) + cf2 / (z + 2) + cf3 / (z + 3)
+          + cf4 / (z + 4) + cf5 / (z + 5) + cf6 / (z + 6)
+
+  a_5_dn = - cf1/(z + 1)*(z + 1) - cf2/(z + 2)*(z + 2) - cf3/(z + 3)*(z + 3)
+           - cf4/(z + 4)*(z + 4) - cf5/(z + 5)*(z + 5) - cf6/(z + 6)*(z + 6)
+
+  d_gamma = a_5_dn/a_5 + log(z+5.5) + (z+0.5)/(z+5.5) - 1
+
+  gamma = gamma_lancoz(z)
+  egamma = exp(gamma)
+  psi = d_gamma/gamma
+
+}
+
+# this will not work great i.e errors may be big with the negative numbers
+pdigamma_old = function (
+        matrix[double] Z
+) return (matrix[double] Psi) {
+
+  GAMMA = 0.577215664901532860606512090082 #euler's constant
+  C_LIMIT = 49.0;
+  S_LIMIT = 1e-5;
+  Infp = 1.0/0.0
+  Infn = -1.0/0.0
+  NaN = 0.0/0.0
+
+  write(Z, "tmp_z.txt")
+  r = nrow(Z)
+  c = ncol(Z)
+  NaNPred = ppred(Z, NaN, "==");
+  InfpPred = ppred(Z, Infp, "==");
+  InfnPred = ppred(Z, Infn, "==");
+  GtzPred = ppred(Z, 0.0, ">");
+  S_LimPred = ppred(Z, S_LIMIT, "<=");
+  C_LimPred = ppred(Z, C_LIMIT, ">=");
+
+  # case 1 
+  noChangePred = InfpPred + InfnPred + NaNPred
+  write(noChangePred, "tmp_noChangePred.mtx")
+  sumNoChangePred = sum(noChangePred)
+  if (sumNoChangePred != 0.0) {
+    stop("parallel digamma input contains Nan or Inf or -Inf")
+  }
+  
+
+  #case 2: z = (0, 1e-5]
+  smZPred = GtzPred*S_LimPred
+  write(smZPred, "tmp_smZPred.mtx")
+  sm_Z = Z*smZPred
+  sm_Psi = -GAMMA - 1 / sm_Z;
+  write(sm_Psi, "tmp_sm_Psi.mtx")
+
+  #case 3: z = [49, inf)
+  lgZPred = C_LimPred
+  write(lgZPred, "tmp_lgZPred.mtx")
+  lg_Z = Z*lgZPred
+  lg_inv = 1/(lg_Z*lg_Z)
+  lg_Psi = log(lg_Z) - 0.5 / lg_Z - lg_inv * ((1.0 / 12) + lg_inv * (1.0 / 120 - lg_inv / 252))
+  write(lg_Psi, "tmp_lg_Psi.mtx")
+
+  #case 4: z = (1e-5, 49) U (0, -inf) # note we don't take into account the negative numbers
+  slZPred = (1-S_LimPred)*(1-C_LimPred)
+  write(slZPred, "tmp_slZPred.mtx")
+  sl_Z = Z*slZPred
+  write(sl_Z, "tmp_sl_Z.mtx")
+  sl_inv = 1/(sl_Z*sl_Z)
+
+  # calculate the corresponding n
+  N = ceil(C_LIMIT*slZPred-sl_Z)
+  write(N, "tmp_pn.mtx")
+  St1 = (N)*Z
+  St2 = (N-1)*(N)/2
+  St3 = St1+St2
+  write(St1, "tmp_St1.mtx")
+  write(St2, "tmp_St2.mtx")
+  write(St3, "tmp_St3.mtx")
+  S = 1/St3
+  #S = 1/((N)*Z + (N-1)*(N)/2)
+
+  write(S, "tmp_ps.mtx")
+  ZnPsi = log(sl_Z) - 0.5 / sl_Z - sl_inv * ((1.0 / 12) + sl_inv * (1.0 / 120 - sl_inv / 252))
+  sl_Psi = ZnPsi - S
+  write(sl_Psi, "tmp_sl_Psi.mtx")
+
+  # print("n="+n + ";s="+s + ";zn_psi="+zn_psi)
+
+/*
+  Zn = N + Z
+  Inv = 1/(Zn*Zn)
+  #zn_psi = 0.0
+  ZnPsi = log(Zn) - 0.5 / Zn - Inv * ((1.0 / 12) + Inv * (1.0 / 120 - Inv / 252))
+  # print("n="+n + ";s="+s + ";zn_psi="+zn_psi)
+  Psi = ZnPsi - S
+*/
+  
+  #write(pp2, "tmp_pp.txt")
+  Psi = Z
+  /*
+  if (z <= 0) {
+    psi = z
+  } else if( z <= S_LIMIT) {
+    # use method 5 from Bernardo AS103
+    # accurate to O(x)
+    psi = -GAMMA - 1 / z;
+  } else if (z >= C_LIMIT) {
+    inv = 1/(z*z)
+    psi = log(z) - 0.5 / z - inv * ((1.0 / 12) + inv * (1.0 / 120 - inv / 252))
+  } else { #S_LIMIT < z < C_LIMIT
+    #psi_1 = digamma(z + 1)
+    #psi = psi_1 - 1 / z
+    n = ceil(C_LIMIT-z)
+    seq = seq(0, n-1, 1)
+    write(seq, "tmp_seq.mtx")
+    s = as.scalar(colSums(1/(seq+z)))
+    write(s, "tmp_s.mtx")
+    zn = n + z
+    inv = 1/(zn*zn)
+    #zn_psi = 0.0
+    zn_psi = log(zn) - 0.5 / zn - inv * ((1.0 / 12) + inv * (1.0 / 120 - inv / 252))
+    # print("n="+n + ";s="+s + ";zn_psi="+zn_psi)
+    psi = zn_psi - s
+    #psi = 0.0
+  }
+  */
+}
+    
+# this will not work great i.e errors may be big with the negative numbers
+pdigamma = function (
+        matrix[double] Z
+) return (matrix[double] Psi) {
+
+  GAMMA = 0.577215664901532860606512090082 #euler's constant
+  C_LIMIT = 49.0;
+  S_LIMIT = 1e-5;
+  Infp = 1.0/0.0
+  Infn = -1.0/0.0
+  NaN = 0.0/0.0
+
+  write(Z, "tmp_z.txt")
+  r = nrow(Z)
+  c = ncol(Z)
+  NaNPred = ppred(Z, NaN, "==");
+  InfpPred = ppred(Z, Infp, "==");
+  InfnPred = ppred(Z, Infn, "==");
+  GtzPred = ppred(Z, 0.0, ">");
+  S_LimPred = ppred(Z, S_LIMIT, "<=");
+  C_LimPred = ppred(Z, C_LIMIT, ">=");
+
+  # case 1 
+  noChangePred = InfpPred + InfnPred + NaNPred
+  write(noChangePred, "tmp_noChangePred.mtx")
+  sumNoChangePred = sum(noChangePred)
+  if (sumNoChangePred != 0.0) {
+    stop("parallel digamma input contains Nan or Inf or -Inf")
+  }
+  
+
+  #case 2: z = (0, 1e-5]
+  smZPred = GtzPred*S_LimPred
+  write(smZPred, "tmp_smZPred.mtx")
+  sm_Z = Z*smZPred
+  sm_Psi = -GAMMA - 1 / sm_Z;
+  write(sm_Psi, "tmp_sm_Psi.mtx")
+
+  #case 3: z = [49, inf)
+  lgZPred = C_LimPred
+  write(lgZPred, "tmp_lgZPred.mtx")
+  lg_Z = Z*lgZPred
+  lg_inv = 1/(lg_Z*lg_Z)
+  lg_Psi = log(lg_Z) - 0.5 / lg_Z - lg_inv * ((1.0 / 12) + lg_inv * (1.0 / 120 - lg_inv / 252))
+  write(lg_Psi, "tmp_lg_Psi.mtx")
+
+  #case 4: z = (1e-5, 49) U (0, -inf) # note we don't take into account the negative numbers
+  slZPred = (1-S_LimPred)*(1-C_LimPred)
+  write(slZPred, "tmp_slZPred.mtx")
+  sl_Z = Z*slZPred
+  write(sl_Z, "tmp_sl_Z.mtx")
+  sl_Z1D = matrix(sl_Z, rows=r*c, cols=1)
+   write(sl_Z1D, "tmp_sl_Z1D.mtx")
+  
+
+  
+  # calculate the corresponding n
+  #N = ceil(C_LIMIT-sl_Z1)
+  maxN = 49
+  
+  G = matrix(0, rows=nrow(sl_Z1D), cols=maxN)
+  parfor(i in 1:nrow(sl_Z1D)) {
+    s = seq(0, maxN-1, 1)
+    ts = t(s)
+    ts_sum = as.scalar(rowSums(ts))
+    print("pgamma i = "+i+";ts_sum="+ts_sum)
+    write(ts, "tmp_s"+i+".mtx")
+    G[i,] = 1/(ts + sl_Z1D[i,1])
+    SN_p = (ts + sl_Z1D[i,1])
+    write(SN_p, "tmp_snp"+i+".mtx")
+    SN = 1/SN_p
+    write(SN, "tmp_sn"+i+".mtx")
+  }
+
+  S = rowSums(G)
+  write(S, "tmp_sp.mtx")
+  sl_Z1D = sl_Z1D + maxN
+  sl_inv = 1/(sl_Z1D*sl_Z1D)
+  write(S, "tmp_ps.mtx")
+  ZnPsi = log(sl_Z1D) - 0.5 / sl_Z1D - sl_inv * ((1.0 / 12) + sl_inv * (1.0 / 120 - sl_inv / 252))
+  write(ZnPsi, "tmp_zn_Psi.mtx")
+  sl_Psi = ZnPsi - S
+  write(sl_Psi, "tmp_zz_sl_Psi.mtx")
+
+  # print("n="+n + ";s="+s + ";zn_psi="+zn_psi)
+/*
+*/
+/*
+  Zn = N + Z
+  Inv = 1/(Zn*Zn)
+  #zn_psi = 0.0
+  ZnPsi = log(Zn) - 0.5 / Zn - Inv * ((1.0 / 12) + Inv * (1.0 / 120 - Inv / 252))
+  # print("n="+n + ";s="+s + ";zn_psi="+zn_psi)
+  Psi = ZnPsi - S
+*/
+  
+  #write(pp2, "tmp_pp.txt")
+  Psi = Z
+  /*
+  if (z <= 0) {
+    psi = z
+  } else if( z <= S_LIMIT) {
+    # use method 5 from Bernardo AS103
+    # accurate to O(x)
+    psi = -GAMMA - 1 / z;
+  } else if (z >= C_LIMIT) {
+    inv = 1/(z*z)
+    psi = log(z) - 0.5 / z - inv * ((1.0 / 12) + inv * (1.0 / 120 - inv / 252))
+  } else { #S_LIMIT < z < C_LIMIT
+    #psi_1 = digamma(z + 1)
+    #psi = psi_1 - 1 / z
+    n = ceil(C_LIMIT-z)
+    seq = seq(0, n-1, 1)
+    write(seq, "tmp_seq.mtx")
+    s = as.scalar(colSums(1/(seq+z)))
+    write(s, "tmp_s.mtx")
+    zn = n + z
+    inv = 1/(zn*zn)
+    #zn_psi = 0.0
+    zn_psi = log(zn) - 0.5 / zn - inv * ((1.0 / 12) + inv * (1.0 / 120 - inv / 252))
+    # print("n="+n + ";s="+s + ";zn_psi="+zn_psi)
+    psi = zn_psi - s
+    #psi = 0.0
+  }
+  */
+}
+    
+/* 
+#BEGIN TEST    
+psi = digamma(1000)
+print("digamma(1000)="+psi)
+
+psi = digamma(100)
+print("digamma(100)="+psi)
+
+psi = digamma(35)
+print("digamma(35)="+psi)
+
+psi = digamma(30)
+print("digamma(30)="+psi)
+
+psi = digamma(15.8)
+print("digamma(15.8)="+psi)
+
+psi = digamma(10)
+print("digamma(10)="+psi)
+
+psi = digamma(2)
+print("digamma(2)="+psi)
+
+psi = digamma(1.5)
+print("digamma(1.5)="+psi)
+
+psi = digamma(0.01)
+print("digamma(0.01)="+psi)
+
+psi = digamma(0.0)
+print("digamma(0.0)="+psi)
+
+psi = digamma_it(0.0)
+print("digamma_it(0.0)="+psi)
+
+psi = digamma(-10.5)
+print("digamma(-10.5)="+psi)
+
+psi = digamma_it(-10.5)
+print("digamma_it(-10.5)="+psi)
+
+#compare recur and it digamma
+#
+print("BEGIN TEST digamma vs digamma_it")
+for ( i in 1:50) {
+ for (j in 2:2) {
+   z = 0.0 + i + 1.0/j
+   psi1 = digamma(z)
+   psi2 = digamma_it(z)
+   rsd = psi1-psi2
+   if (rsd < 1e-10) {
+     rsd = 0.0
+   }
+   if (rsd != 0.0) {
+     print("  digamma("+z+")-digamma_it("+z+")="+rsd)
+   } else {
+     #print("  digamma("+z+")-digamma_it("+z+")="+rsd)
+   }
+ }
+}
+print("END TEST digamma vs digamma_it")
+
+#double NaN and Inf test
+Inf = 1.0/0.0
+NaN = 0.0/0.0
+
+if (-1.0/0.0 == NaN) {
+  print("inf==Infinity")
+}
+print("inf="+Inf)
+print("nan="+NaN)
+
+d1 = NaN-NaN
+print("NaN-NaN="+d1)
+
+
+
+psi = digamma_it(15.8)
+print("digamma_it(15.8)="+psi)
+
+psi = digamma_it(10)
+print("digamma_it(10)="+psi)
+
+psi = digamma_it(1.5)
+print("digamma_it(1.5)="+psi)
+
+psi = digamma_lancoz(100)
+print("digamma_lancoz(100)="+psi)
+
+
+
+psi = gamma_lancoz(12)
+print("gamma_lancoz(12)="+psi)
+
+psi = digamma_lancoz(12)
+print("digamma_lancoz(12)="+psi)
+
+psi = gamma_lancoz(12)
+print("gamma_lancoz(12)="+psi)
+
+psi = digamma(12)
+print("digamma(12)="+psi)
+*/
+
+# parallel digamma
+#Z = seq(45,55, 1)
+Z = matrix("0 1e-6 1e-7 1.5 10 15.8 50 60 100 1000", 2, 5)
+Psi = pdigamma(Z)
+
+psi = digamma_it(1.5)
+print("digamma_it(1.5)="+psi)
+/*
+psi = digamma_it(10)
+print("digamma_it(10)="+psi)
+
+psi = digamma_it(15.8)
+print("digamma_it(15.8)="+psi)
+*/

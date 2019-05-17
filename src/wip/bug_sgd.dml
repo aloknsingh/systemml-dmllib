@@ -1,0 +1,14 @@
+#This kind of operation is very common in the stochastic gradient kind of algorithm and it should be nice to support this
+
+tom = function(int v) return (matrix[double] M) { M = matrix(v, rows=2, cols=3) }
+
+ms = matrix(0, rows=2, cols=3)
+parfor (v in 1:10, check=0) {
+  print (v)
+  mv = tom(v)
+  st = "hello"
+  #smv = st+mv
+  #print(smv)
+  ms = ms + mv
+}
+

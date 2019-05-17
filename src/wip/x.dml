@@ -1,0 +1,48 @@
+
+#M1=matrix(1.0, rows=2, cols=5)
+M1=matrix("1 2 3 4 5 6 7 8 9 10", rows=2, cols=5)
+
+rowSum = rowSums(M1)
+
+M2=M1-rowSum
+
+ignore=printm("M_rowSum", rowSum)
+ignore=printm("M_M2", M2)
+
+# test elogbeta calc
+alpha = matrix("1.0426936594239253 0.9694387963698439 1.0578735808306585 1.051830057189232 1.0668773621644985 1.0191618083572263  0.9433416463427491  0.9846012688534558  0.8993109431931469  0.9683474561961185", rows=2, cols=5)
+
+elogbeta = dirichlet_expectation_logposterior(alpha)
+ignore=printm("M_elogtheta", elogbeta)
+
+expected_elt = matrix("-2.0561363394666707 -2.175680162930706 -2.0328835639161755 -2.042083015895836 -2.0193176402897346 -2.010389670599566   -2.1387419274639488  -2.0670946357717286  -2.220512479278597  -2.0947817599713643", rows=2, cols=5)
+
+err = elogbeta-expected_elt
+ignore=printm("M_err", err)
+
+a1 = pows(2,4)
+print("pow(2,4)="+a1)
+a2 = pows(16, -0.5)
+print("pow(16,-4)="+a2)
+
+# power for the positve base for scalar
+pows = function(double rplus, double exponent) 
+return (double ans) {
+  ans = exp(exponent*log(rplus))
+}
+
+
+
+dirichlet_expectation_logposterior = function (matrix[double] alpha) 
+return (matrix[double] elogtheta) {
+   dig_alpha = digamma(alpha)
+   sum_alpha = rowSums(alpha)
+   dig_sum_alpha = digamma(sum_alpha)
+   elogtheta = dig_alpha - dig_sum_alpha   
+}
+
+
+
+# include all the libraries
+#include "io/io.dml"
+#include "math/special/DiGamma.dml"

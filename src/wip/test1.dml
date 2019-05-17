@@ -1,0 +1,23 @@
+#include "hello.dml"
+
+Z="alok"
+x=foo("a", "b")
+
+foo = function(String s, 
+      String X) return (String s1) {
+  print("foo="+s)
+  print("fooX="+X)
+  s1 = s
+  s2 = X
+}
+X=$X
+pX = read(X)
+
+Y=$Y
+pY = read(Y)
+
+print("Y="+Y)
+r1=foo(Y, X)
+
+
+write(pX, $O, fmt="csv")

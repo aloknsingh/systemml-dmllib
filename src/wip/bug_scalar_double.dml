@@ -1,0 +1,34 @@
+square = function (double a) return (double b) { b = a*a}
+
+#doesn't work
+foo = square(1.9/2.9)
+
+#work
+sq_in_a = 1.9/2.9
+foo = square(sq_in_a)
+
+print(foo)
+
+/*
+#ERROR MSG
+java.lang.NullPointerException
+	at com.ibm.bi.dml.parser.StatementBlock.rewriteFunctionCallStatements(StatementBlock.java:466)
+	at com.ibm.bi.dml.parser.StatementBlock.validate(StatementBlock.java:547)
+	at com.ibm.bi.dml.parser.DMLTranslator.validateParseTree(DMLTranslator.java:146)
+	at com.ibm.bi.dml.api.DMLScript.execute(DMLScript.java:603)
+	at com.ibm.bi.dml.api.DMLScript.executeScript(DMLScript.java:343)
+	at com.ibm.bi.dml.api.DMLScript.main(DMLScript.java:199)
+Exception in thread "main" com.ibm.bi.dml.api.DMLException: java.lang.NullPointerException
+	at com.ibm.bi.dml.api.DMLScript.executeScript(DMLScript.java:355)
+	at com.ibm.bi.dml.api.DMLScript.main(DMLScript.java:199)
+Caused by: java.lang.NullPointerException
+	at com.ibm.bi.dml.parser.StatementBlock.rewriteFunctionCallStatements(StatementBlock.java:466)
+	at com.ibm.bi.dml.parser.StatementBlock.validate(StatementBlock.java:547)
+	at com.ibm.bi.dml.parser.DMLTranslator.validateParseTree(DMLTranslator.java:146)
+	at com.ibm.bi.dml.api.DMLScript.execute(DMLScript.java:603)
+	at com.ibm.bi.dml.api.DMLScript.executeScript(DMLScript.java:343)
+
+#COMMENTS:
+ first, we should support this in the input 
+ second, the error msg has to be more better line number, where the bug is
+*/

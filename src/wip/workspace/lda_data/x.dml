@@ -1,0 +1,6 @@
+tot = 0
+parfor (i in 1:10) {
+  nv = i
+  tot = tot + nv
+}
+print("tot="+tot)

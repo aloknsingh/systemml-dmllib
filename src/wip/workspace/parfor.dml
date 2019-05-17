@@ -1,0 +1,16 @@
+iter_max = 5
+beta = matrix(0, rows=2, cols=2*iter_max)
+parfor (i in 1:iter_max, check=0) {
+#for (i in 1:iter_max) {
+  A = matrix(1, rows=2, cols=2)
+  A = A + i
+  cj = ncol(A)
+  cidx1 = (i-1)*cj+1
+  cidx2 = i*cj
+  print("i = " + i + ", cidx1 = " + cidx1)
+  print("i = " + i + ", cidx2 = " + cidx2)
+  #print("row(A) = " + nrow(A) + ", col(A) = " + ncol(A))
+  #print("row(beta) = " + nrow(beta) + ", col(beta) = " + ncol(beta))
+  beta[,cidx1: cidx2] = A
+}
+write(beta, "m_A.mtx")

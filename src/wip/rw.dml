@@ -1,0 +1,4 @@
+
+m=matrix(seq(1,5,1), rows=1, cols=5)
+write(m, "m.mtx")
+m2=read("m.mtx")

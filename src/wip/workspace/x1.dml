@@ -1,0 +1,141 @@
+
+#ignore=test_mdot()
+ignore=test_maligncols()
+
+#@description: test code for matrix dot products
+test_mdot = function() return () {
+  print("running test_mdot")
+
+  expElogthetad = matrix("0.38122031  0.32534496", rows=2, cols=1)
+  ignore=printm("M_expElogthetad", expElogthetad)
+
+  expElogbetad = matrix("0.11654062  0.13499789  0.10653695  0.12223767  0.14378144 0.15303758  0.10944634  0.12849357  0.09510771  0.12477721", rows=2, cols=5)
+  ignore=printm("M_expElogbetad", expElogbetad)
+
+  phinorm = mdot(expElogthetad, expElogbetad)
+  ignore=printm("M_phinorm", phinorm)
+
+  phinorm_exp = matrix("0.09421765662758899 0.08707175258459231 0.0824187844973617 0.0775422965567193 0.09540804152540801", rows=1, cols=5)
+
+  isequal = mequals(phinorm, phinorm_exp)
+  if (isequal) {
+    print("passed test_mdot")
+  } else {
+    print("failed test_mdot")
+  }
+  print("____________________________")
+}
+
+test_maligncols = function() return () {
+  print("running test_maligncols")
+  # case 1
+  M=matrix("20 30 40 60", rows=2, cols=2)
+  C=matrix("2 4", rows=2, cols=1)
+  SM_exp = matrix("0 20 0 30 0 0 40 0 60 0", rows=2, cols=5)
+  maxCols = 5
+  ignore=test_maligncols_impl(M, C, maxCols, SM_exp)
+
+  # case 2
+  M=matrix("20 30 100 40 60 120", rows=2, cols=3)
+  C=matrix("2 4 5", rows=3, cols=1)
+  SM_exp = matrix("0 20 0 30 100 0 40 0 60 120", rows=2, cols=5)
+  maxCols = 5
+  ignore=test_maligncols_impl(M, C, maxCols, SM_exp)
+
+  print("=============================")
+}
+test_maligncols_impl = function(
+  matrix[double] M,
+  matrix[double] C,
+  int maxCols,
+  matrix[double] SM_exp
+) return ()
+{
+  print("running test_maligncols_impl")
+  ignore=printm("M_M", M)
+  # mcols test
+  ignore=printm("M_C", C)
+
+  SM = maligncols(M, C, maxCols, "cols")
+  ignore=printm("M_MN", SM)
+
+  ignore=printm("M_SM_exp", SM_exp)
+
+  isequal = mequals(SM, SM_exp)
+  if (isequal) {
+    print("maligncols passed")
+  } else {
+    stop("maligncols failed")
+  }
+  print("____________________________")
+}
+
+#code
+
+maligncols = function(
+  matrix[double] X,
+  matrix[double] colsOrder,
+  int maxCols,
+  string by
+) return (matrix[double] Y) {
+   if (nrow(colsOrder) != ncol(X)) {
+      stop("mshufflerows: cols and B doesn't align")
+   }
+   P=table(seq(1, nrow(colsOrder)), colsOrder, nrow(colsOrder), maxCols)
+   ignore=printm("M_P", P)
+   Y = X %*% P
+
+}
+
+mdot = function(
+ matrix[double] A,
+ matrix[double] B
+) return (matrix[double] D) {
+   ra = nrow(A); ca = ncol(A)
+   rb = nrow(B); cb = ncol(B)
+
+   if (ra != rb) {
+     stop("FATAL: mdot => matrix A(" + ra + "x" + ca + ") and B(" + rb + "x" + cb + ") doesn't align")
+   }
+
+   D = t(A) %*% B
+}
+
+mequals = function(
+  matrix[double] A,
+  matrix[double] B
+) return (int isequal) {
+  if (nrow(A) != nrow(B) | ncol(A) != ncol(B)) {
+    isequal = 0
+  } else {
+    notequal = sum(ppred(A, B, "!="))
+    if (notequal > 0) {
+      isequal = 0
+    } else {
+      isequal =1
+    }
+  }
+}
+
+
+printm_raw = function(matrix[double] M) return (matrix[double] M) {
+  if (nrow(M)*ncol(M) >= 100*100) {
+     stop("print_raw => Matrix is too big to print in stdout! Aborting ... s")
+  }
+  for (i in 1:nrow(M)) {
+    for (j in 1:ncol(M)) {
+       e = as.scalar(M[i,j])
+       print(" " + i + " " + j + " " + e)
+    }
+  }
+  M = M
+}
+
+printm = function(string name, matrix[double] M) return (matrix[double] M) {
+  print("printing matrix = " + name)
+  ignore = printm_raw(M)
+  print("done printing matrix = " + name)
+  M = M
+}
+
+

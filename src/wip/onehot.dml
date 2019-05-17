@@ -1,0 +1,35 @@
+
+#print the matrixs
+printm_raw = function(matrix[double] M) return (matrix[double] M) {
+  if (nrow(M)*ncol(M) >= 100*100) {
+     stop("print_raw => Matrix is too big to print in stdout! Aborting ... s")
+  }
+  for (i in 1:nrow(M)) {
+    for (j in 1:ncol(M)) {
+       e = as.scalar(M[i,j])
+       print(" " + i + " " + j + " " + e)
+    }
+  }
+  M = M
+}
+
+printm = function(string name, matrix[double] M) return (matrix[double] M) {
+  print("printing matrix = " + name)
+  ignore = printm_raw(M)
+  print("done printing matrix = " + name)
+  M = M
+}
+
+encode_onehot = function(matrix[double] X) return(matrix[double] Y) {
+ N = nrow(X)
+ Y = table(seq(1, N, 1), X) 
+}
+
+#Y_vec = matrix("5 3 4 3 2 1", rows=6, cols=1)
+Y_vec = matrix("5 4 2", rows=3, cols=1)
+#N = nrow(Y_vec)
+#Y = table (seq (1, N, 1), Y_vec);
+Y=encode_onehot(Y_vec)
+write(Y, "m_Y.mtx")
+d=printm("M_Y", Y)
+

@@ -1,0 +1,50 @@
+
+z = 6
+
+print ("before if(1)=" +z)
+if (1) {
+ z = 7
+ print ("if(1)=" +z)
+} else {
+ z = 8
+ print ("else(1)=" +z)
+}
+print ("after if(1)=" +z)
+
+inf = 1.0/0.0
+nan = 0.0/0.0
+
+infzero = inf*0.0
+nanzero = nan*0.0
+
+print("infzero="+infzero)
+
+M = matrix("1 2 3 4 5 6", rows=2, cols=3)
+write(M, "tmp_M.mtx")
+
+d1 = nrow(M)*ncol(M)
+M1D = matrix(M, rows=d1, cols=1)
+write(M1D, "tmp_M1D.mtx")
+
+n = d1
+
+G = matrix(0, rows=d1, cols=n)
+d = nrow(M1D)
+Go = matrix(0, rows=d1, cols=n)
+parfor(i in 1:d) {
+ print("ALOK i="+i+";d="+d)
+ e = as.scalar(ceil(M1D[i,1]))
+ s = seq(0, n-1, 1)
+ /*
+ if (e > 1) {
+   s = seq(0, e-1, 1)
+   #write(s, "tmp_s"+i+".mtx")
+ } else {
+   s = matrix(0, rows=1, cols=1)
+ }
+ */
+ ts = t(s)
+ Go[i,] = ts
+}
+#write(G, "tmp_G.mtx")
+#write(t(G), "tmp_G.mtx")

@@ -1,0 +1,8 @@
+hello = function() {
+  ignore=hello_nested()
+}
+
+hello_nested = function() {
+  print("Hi!")
+}
+

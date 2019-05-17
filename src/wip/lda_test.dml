@@ -1,0 +1,695 @@
+# THIS SCRIPT SOLVES TOPIC MODELLING PROBLEM USING THE Online Variational Bayes Latent Dirichlet Allocation( Online_VB_LDA)
+#
+# ASSUMPTIONS:
+#   1) Individual docs are represented as the bag of words models.
+#   2) The input already been pre-processed i.e tokenization, stop word removable, stemming etc are done
+#       one of the ways we can find the vocabulary for the corpus is to use the tfi-df
+#   3) The each line in input corpus contains termVector
+#   
+# INPUT PARAMETERS:
+# convention: We group the params 
+#      is*  => flags and can have 1 or 0 only
+#      corpus* => all the params related the input corpus
+#      var* => all the params for the online variational algo.especially the top level controls
+#      em*  => all the params for the estimation of {phi,gamma} which we calculate using the E step of EM algo
+#      model* => all the params related to the end model
+# --------------------------------------------------------------------------------------------
+# NAME             TYPE     DEFAULT  MEANING
+# --------------------------------------------------------------------------------------------
+# corpusTermVecs   String    ---     Location (on HDFS) to read document term vector.each line 
+#                                    represents the doc and it's content is the id of word from doc in vocab                             
+# corpusTermCnts   String    ---     Location (on HDFS) to read term counts. Each line represents the doc
+#                                    and it's content is the count of the word whose id is in the termVecs
+# corpusMaxSize    Int       ---     Total number of documents in the population. For a fixed corpus,
+#                                    this is the size of the corpus. In the truly online setting, this
+#                                    can be an estimate of the maximum number of documents that could ever be seen.
+# corpusTopicsNum  Int       ---     Number of topics in the model (must remain constant in various run)
+# corpusVocabSize  Int       ---     Number of words in the vocabulary (must remain constain in various run)
+# isOnline         Int        1      Whether we want to run the online or the batch variational bayes LDA?
+#                                    Online VB mode, user must pass in the corpusBatchSize and kappa
+#                                    Batch VB mode , corpusBatchSize == corpusMax and kappa == 0 is assumed
+# isCheckInput     Int        0      Whether to do sanity checks on the corpus* params and contents?
+# debug            Int        0      Various debug level for Values and meanings are
+#                                    0 means no debug message
+#                                    >=3 means print out the internal iterations stats and info
+#                                    >=5 prints out the important matrixes and final model (if matrix cell counts <= 1e4)
+#                                    >=10 prints out he intermediate calculated matrix. Note that it won't print it if num of cells > 1e4
+# alpha            Double    1/corpusNumTopics     Dirichlet Hyperparameter for prior on doc' topic weight vectors theta
+# eta              Double    1/corpusNumTopics     Dirichlet Hyperparameter for prior on topics word weight (distribution) vector, beta
+# tau0             Int       1024    A (positive) learning parameter that downweights early iterations 
+# kappa            double    0.7     Learning rate: exponential decay rate---should be between
+#                                    (0.5, 1.0] to guarantee asymptotic convergence
+# modelInit        string    random  The following three modes are supported for the initialization of model 'Lambda'
+#                                       1) model : a fitted model from the previous run is provided which is used for initialization.
+#                                          This allows one to use this dml in truely online settings whether one can exit from the script.
+#                                       2) random : (default) random initialization of the model
+#                                       3) seeded : (not implemented yet) but we will have the random doc generator later and 
+#                                          this options will be use to generate docs and initial model are chosen from the 
+#                                          model calculation over the random docs
+# modelInitLoc     string    ---     The hdfs/local location for the initialization of model 'Lambda'. This options is used along with 
+#                                    modelInit=model and modelUpdateCount=<update_cnt>
+# modelUpdateCount Int        0      Useful for multi ran use case, this options is user along with modelInit=model and modelInitLocal=<hdfs_file>
+# modelOutLoc      string    model_updatedLambda.mtx The output hdfs/local file for storing the new/updated model 'Lambda'
+# modelUpdateCountOutLoc string model_updatedCount.mtx the output hdfs/local file to store the updated count of the number of batch finished.
+#                                                      Note:this is the 1x1 matrix
+# varBatchSize     Int       ---     Number of documents in the one batch of the online variational bayes LDA
+#                                    for the batch varionational bayes LDA, varBatchSize == corpusMax   
+# varIterMax       Int       100     The maximum number of iterations for the convergence of the model 'Lambda' computation
+# varTol           Double    0.005   The tolerance for the convergence when the relative change in model 'Lambda' <= varTol, the iterations stops
+# emIterMax        Int       100     The maximum number of iterations for the convergence of the E steps of EM for {phi,gamma} calc
+# emTol            Double    0.001   The tolerance for he convergence of the E steps of EM for {phi, gamma} calc
+#                                    The em iterations stops when the meanchange becomes <= emTol
+# ofmt             String    "text"  Matrix file output format, such as `text`,`mm`, or `csv` 
+# Log              String    " "     Location to store output and variables for monitoring and debugging purposes
+# 
+
+# --------------------------------------------------------------------------------------------
+# OUTPUT: Matrix of corpusTopicsNum x corpusVocabSize matrix of lambda which acts as the model. We also write 
+#     update count for the model so far
+#
+#
+# HOW TO INVOKE THIS SCRIPT - EXAMPLE:
+# Batch Mode:
+#   hadoop jar SystemML.jar -f onlineVB-LDA.dml -nvargs corpusTermVecs=term_ids.mtx corpusTermCnts=term_cnts.mtx corpusMaxSize=1000 corpusTopicsNum=50 corpusVocabSize=10000 varBatchSize=50 modelUpdateCount=0 varIterMax=100 isOnline=0 do_smoketest=0 debug=3
+# @TODO : add online example
+#
+# HOW TO EXPLORE CORPUS WITH POSTERIOR DISTRIBUTION
+# 1) Visualizing a topic: @TBD
+# 2) Visualizing a document: @TBD
+# 3) Finding Similar documents: @TBD
+#
+# SOME PRACTICAL CONSIDERATION FOR THE MODEL USAGES AND GENERATION AND APPLICATIONS
+# 1) Initialization and restarts: 
+#  1.1) Since this algorithm finds a local maximum of the variational objective function, initializing the 
+#     topics is important.Therefore, an effective initialization technique is to randomly chose a small number 
+#      (eg 1-5) of "seed" documents, create a distribution over words by smoothing their aggregatd word counts over 
+#      the whole vocabulary and from these counts computer a first value for E[log(beta(k,w))]. 
+#      @NOTE: that we provide the modelInit=model options to achieve the above.
+#  1.2) Also we can perform kind of model selection which best suits the result i.e the inference algo
+#       may be re-started multiple times, with different seed sets, to find a good local maxinum.
+#       @Note that in the online setting, we already sample the batch with replacement to simulate this
+#           for the batch run, we can follow this
+# 2) Choosing the vocabulary. It is often computationally expensise to use the entire vocabulary. Choosing the top 
+#    V words by TFIDF is an effective way to prune the vocabulary.This naturally prunes out stop words and 
+#    other terms that provides little thematic content to the documents.
+# 3) Choosing the number of topics: Choosing the number of topics is the persistent problem in topic modelling and 
+#    other latent variable analysis. In some cases, the number of topics is part of the pb formulation and specified 
+#    by an outside source. One way is to run the algo with various topics and pick up the one which provides the 
+#    best perplexity (geometric mean of inverse marginal probability of each word) on the held out data. thus providing
+#    some sort of model selection
+#    
+#     
+
+
+#@NOTE:We follow the following convention to point out the important things.
+#  @NOTE: This is the point user/reviewer/develper has to look
+#  @TODO: to do in the later or future
+#  @TBD: to be decided 
+#  @ref: reference to technical paper or code
+#  @description: mostly the desciption of the func
+#  @input: input description of function
+#  @output: output description of function
+#  @assumption: the underlying assumption in the block of code
+#  
+
+
+#@TODO: why parfor having pb for more than 1 doc? discuss with Matthias
+#@TODO: How do we set init seed for random number gen?
+#@TODO:make run method to run the top converging iteration
+do_smoketest = ifdef($do_smoketest, 0)
+
+if (do_smoketest == 0) {
+  ignore=main()
+} else {
+  ignore=smoketest_online_VB_LDA()
+}
+
+# debug flags. indicating the various levels of debug
+debug = function() return(int level) { level = ifdef($debug, 0);}  
+
+# main code
+# user can run it in three initialization mode
+#      model : a fitted model from the previous run is provided which is used for initialization
+#      random : (default) random initialization of the fitted model
+#      seeded : (not implemented yet) but we will have the random doc generator later and this options will be use to generate docs and initial model are chosen from the 
+#               model calculation over the random docs
+# the following use cases
+#  1) batch variaional bayes LDA
+#         1.1) in that case batch size is equal to the total corpus size and
+#         1.2) kappa = 0
+#  2) online variational bayes LDA
+#         2.1) we handle one batch of S documents at one time. and output new lambda i.e the model
+#         
+
+main = function() return() {
+  print("Starting Topic modelling...") 
+  debug = debug()   
+  D = $corpusMaxSize # total number of maximum documents for online settings .. documents #@TODO take it from user options
+  K = $corpusTopicsNum
+  W = $corpusVocabSize
+  isOnline = ifdef($isOnline, 1)
+  alpha = ifdef($alpha, 1.0/K) 
+  eta = ifdef($eta, 1.0/K)  # usually 1/K
+  tau0 = ifdef($tau0, 1024)
+  tau0 = tau0 + 1 # case when the user passes in 0
+  kappa = ifdef($kappa, 0.7) # must be (0.5, 1]
+  varBatchSize = $varBatchSize  # default batchSize is 
+  Log = ifdef($Log, " ")
+  varIterMax = ifdef($varIterMax, 100)
+  isCheckInput = ifdef($isCheckInput, 0)
+  modelInit = ifdef($modelInit, "random")
+  outModelLoc = ifdef($modelOutLoc, "model_updatedLambda.mtx")
+  outModelUpdateCountLoc = ifdef($modelUpdateCountOutLoc, "model_updatedCount.mtx")
+  
+  # read the input termVecs
+  termVecs = read($corpusTermVecs)
+  termCnts = read($corpusTermCnts)
+
+  # some error checking
+  # check the topic counts
+  if (K <= 1) {
+     stop("**FATAL** => Number of topics should be greater than 1")
+  }
+  # check the learning parameter kappa
+  if (isOnline != 0 & (kappa <= 0.5 | kappa > 1)) {
+     stop("**FATAL** => kappa: The online Learning rate/exponential decay should be in (0.5,1] is needed to gurantee convergence")
+  }
+
+  if (isOnline == 0) { # batch mode
+    print("**WARN** => batch mode is enabled. we will default kappa == 0 and batchSize == number of docs in termCnts")
+    kappa = 0
+    varBatchSize = nrow(termCnts)
+  } 
+
+  # check and init the updatect and lambda
+  updatect = 0
+  #Init the variational distribution q(beta|lambda) # get or read the Lambda
+  if (modelInit == "random") {
+     Lambda = get_random_gamma(K, W)
+  } else if (modelInit == "model") {
+     model= ifdef($modelInitLoc, "unknown") #@TODO change to if else
+     print("**INFO** => reading the model initialization file") 
+     Lambda = read(model)
+     updatect = $modelUpdateCount # the past batch counts is necessay in the model initialization
+  } else if (modelInit == "seeded") {
+     stop("**ERROR** => Seeded mode is not supported yet")
+  } else {
+     stop("**FATAL** => modelInit can be only {'random', 'model', 'seeded'}")
+  }
+  
+
+  if (varBatchSize > nrow(termCnts)) {
+     stop("**FATAL** => batch size can't be greater than number of documents")
+  }
+
+  
+  # check the inputs if asked
+  #@NOTE: this is usefule when systemML says a complicated bug but could be the bad data and hence it is worth checking it
+  if (isCheckInput == 1) {
+    if (nrow(termVecs) != nrow(termCnts)) {
+       stop("**FATAL** => documents termVecs and termCts doesn't match")
+    }
+     # check that the words contains the 
+     if (max(termVecs) > W) {
+       stop("**FATAL** => documents contains word ids not in the vobabulary")
+     }
+     # make sure that the input data contains all the ids and counts
+     isMissingIds = sum(ppred(rowSums(ppred(termVecs, 0, ">=")), W, "!="))
+    
+     isMissingCts=sum(ppred(rowSums(ppred(termCnts, 0, ">=")), W, "!="))
+    
+     if (isMissingIds != 0) {
+       stop("**FATAL** => documents contains missing word ids")
+     }
+     if (isMissingCts != 0) {
+       stop("**FATAL** => documents contains missing word counts")
+     }
+  }
+
+
+
+
+
+  # # sample the matrix
+  # docsSize = nrow(termVecs)
+  # batchDocsIds = sample(docsSize, varBatchSize, TRUE)
+  # #ignore=printm("M_sampled_batchDocsIds", batchDocsIds) #DEBUG CODE @TODO bring in the iterations info
+  
+  # batchDocsWordIds = mrows(termVecs, batchDocsIds)
+  # batchDocsWordCts = mrows(termCnts, batchDocsIds)
+
+  # 
+  # pass in the arbitarty 1,1 matrix so that the downstream code will create it's own random matrix from gamma distribution. This hack is there for debugging
+  Gamma = matrix(0.5, rows=1, cols=1)
+  
+  [updatedGamma, updatedLambda, newUpdateCt] = online_VB_LDA(
+                                    isOnline,
+                                    termVecs, termCnts,
+                                    Gamma, Lambda,
+                                    varBatchSize,
+                                    varIterMax,  
+                                    W, K, D, 
+                                    alpha, eta, tau0, kappa, updatect
+                                  )
+
+  # write the output model
+  write(updatedLambda, outModelLoc)
+
+  #write the final modelUpdateCount
+  write(newUpdateCt, outModelUpdateCountLoc)
+  print("Ending topic modelling")
+}
+
+#for debug
+#@description: This is just here for smoketest and some accuracy testing whose value has been manually verified against the 
+#              author's implementation for accuracy. 
+#              Actual test will be in R/python/java 
+#@TODO: add more cases and 
+#
+smoketest_online_VB_LDA = function() return () {
+  print("Starting Topic modelling...")    
+  debug = debug()  
+  W = 5 # num of words in the vocab
+  K = 2 # num of topics
+  #D = 1 # total number of documents
+  D = 2 # total number of documents
+
+  isOnline = 0
+  alpha = 1.0/K
+  eta = 1.0/K  # usually 1/K
+  tau0 = 1024
+  tau0 = tau0 + 1 # case when the user passes in 0
+  kappa =  0.7 # must be [0.5, 1) 
+  Log = ifdef($Log, " ")
+
+  updatect = 0
+  varIterMax = 1
+
+
+  # for testing 
+  #case 1
+  if (TRUE) { # if block gives a nicer code org. 
+    print("Begin Smoke Test 1 ...")
+    D = 1
+    batchDocsWordIds = matrix("1 2 3 4 5", rows=1, cols=5)
+    batchDocsWordCts = matrix("6 2 2 3 4", rows=1, cols=5)
+    varBatchSize = 1
+    # init the variation distribution q(theta|gamma)
+    Gamma =  matrix("0.93880941 0.8567902", rows=1, cols=K) #ALOK_DEBUG
+  
+    #Init the variational distribution q(beta|lambda) # get or read the Lambda
+    Lambda = matrix("0.96307558 1.05341124 0.91342724 0.9911178 1.09593632 1.1080743 0.90388002 0.99404929 0.83463754 0.97659028", rows=2, cols=5)
+    [updatedGamma, updatedLambda, newUpdateCnt] = online_VB_LDA(
+                                      isOnline,
+                                      batchDocsWordIds, batchDocsWordCts,
+                                      Gamma, Lambda,
+                                      varBatchSize,
+                                      varIterMax,
+                                      W, K, D, 
+                                      alpha, eta, tau0, kappa, updatect
+                                    )
+
+    ignore=printm("M_updatedLambda", updatedLambda)
+    expectedUpdatedLambda = matrix("0.9712565299980254 1.0545998394749134 0.9143870969911314 0.9957686080384052 1.1018217659662055 1.1383736904958452 0.9108320185092539 1.0016189427524405 0.8469614162787922 0.9935600985429838", 
+                             rows=2, cols=5)
+    ignore=printm("M_expectedUpdatedLambda", expectedUpdatedLambda)
+    isequal = mequals(expectedUpdatedLambda, updatedLambda)
+    if (isequal == 1) {
+      print("**INFO** => Smoke test 1 passed")
+    }  else {
+      stop("**FATAL** => Smoke test 1 failed")
+    }
+    print("__________________________________")
+  }
+
+  #batchDocsIds = matrix("1 2 3 4 5 1 2 3 4 5", rows=2, cols=5)
+  #batchDocsCts = matrix("6 2 2 3 4 2 3 6 4 3", rows=2, cols=5)
+
+  #case 2
+  
+  if (TRUE) {
+    print("Begin Smoke Test 2 ...")
+    D = 2
+    batchDocsWordIds = matrix("1 2 3 4 5 1 2 3 4 5", rows=2, cols=5)
+    batchDocsWordCts = matrix("6 2 2 3 4 0 0 6 0 2", rows=2, cols=5)
+    varBatchSize = 2
+    # init the variation distribution q(theta|gamma)
+    #Gamma =  matrix("0.93880941 0.8567902", rows=1, cols=K) #ALOK_DEBUG
+    Gamma =  matrix("0.93880941 0.8567902 1.11048865 0.97495979", rows=2, cols=K) #ALOK_DEBUG
+  
+    #Init the variational distribution q(beta|lambda) # get or read the Lambda
+    Lambda = matrix("0.96307558 1.05341124 0.91342724 0.9911178 1.09593632 1.1080743 0.90388002 0.99404929 0.83463754 0.97659028", rows=2, cols=5)
+  
+    [updatedGamma, updatedLambda, newUpdateCnt] = online_VB_LDA(
+                                     isOnline,
+                                     batchDocsWordIds, batchDocsWordCts,
+                                     Gamma, Lambda,
+                                     varBatchSize,
+                                     varIterMax,
+                                     W, K, D, 
+                                     alpha, eta, tau0, kappa, updatect
+                                   )
+
+    ignore=printm("M_updatedLambda", updatedLambda)
+    expectedUpdatedLambda = matrix("0.9712565299980254 1.0545998394749134 0.9174337845012629 0.9957686080384052 1.1031982854737363 1.1383736904958452 0.9108320185092539 1.0454152383604938 0.8469614162787922 1.0077979067415148", 
+                             rows=2, cols=5)
+    ignore=printm("M_expectedUpdatedLambda", expectedUpdatedLambda)
+    isequal = mequals(expectedUpdatedLambda, updatedLambda)
+    if (isequal == 1) {
+      print("**INFO** => Smoke test 2 passed")
+    }  else {
+      stop("**FATAL** => Smoke test 2 failed")
+    }
+    print("__________________________________")
+  }
+  
+
+}
+
+#@NOTE: in future, all the extra arguement will be reduced as we will have struct/class in system dml
+#@description: This will calculated the new updated Lambda which is the hyper parameter for the dirichlet distribution 'beta',
+#              which is KxW matrix and contains the info about each word for within each topic.This is the stats, 
+#              which describes the docs in the new batch and the docs observed so far. 
+#              This value can be saved in hdfs so as to use for next iteration, If needed
+#@input: see the function signature for details
+#@output: updatedGamma
+#         updatedLambda => The updated new Lambda as per description
+#          
+online_VB_LDA = function(
+  int isOnline, # 1->yes, 0->no
+  matrix[double] termVecs, # cell (i'th doc, j'th word) contains  (index in the vocab of j'th word in i'th docs)
+  matrix[double] termCnts, # cell (i'th doc, j'th word) contains  (count of j'th word in i'th docs)
+  matrix[double] Gamma,            # for testing only we pass 1x1 matrix
+  matrix[double] Lambda,           # past belief i.e sufficient-stats
+  int varBatchSize, # batch size to consider in the online mode
+  int varIterMax, # maximum number of iteration for the variational convergence
+  int W, # number of words in the vocab, should be constant over multiple run
+  int K, # number of topics , should be constain over multiple run
+  double corpusSize, # total number of documents expected ,@NOTE : it is different than the batchSize
+  double alpha, # dir parameter for topic distribution per doc of true distribution. #usually  = 1.0/K 
+  double eta, # dir parameter word distribution per topic. for the  = 1.0/K  # usually 1/K
+  double tau0, # A (positive) learning parameter that downweights early iterations 
+  double kappa, # Learing rate we choose 0.7 # must be [0.5, 1) 
+  int updatect
+) return (matrix[double] updatedGamma, matrix[double] updatedLambda, int newUpdateCnt) {
+  debug = debug()  
+  if (nrow(termVecs) != nrow(termCnts)) {
+    stop("number of docs in termVecs and termCnts doesn't match")
+  }
+  
+  #loop until we converge 
+  varTol = 5*1e-03 # @TODO get it from the user
+
+  
+  
+  docsSize = nrow(termVecs)
+
+  prevVarMeanTol = 0.001 
+  varMeanTol = 1.0
+
+  varIter = 1
+  #while (varMeanTol > varTol & varIter <= varIterMax) { 
+  while (varMeanTol > varTol & varIter <= varIterMax) { 
+   # being sample the termVecs,termCnts
+    if (isOnline == 1) {
+      batchDocsIds = sample(docsSize, varBatchSize, TRUE)
+      #ignore=printm("M_sampled_batchDocsIds", batchDocsIds) #DEBUG CODE @TODO bring in the iterations info
+      batchDocsWordIds = mrows(termVecs, batchDocsIds)
+      batchDocsWordCts = mrows(termCnts, batchDocsIds)
+    #end sample the termVecs,termCnts
+    } else {
+      batchDocsWordIds = termVecs
+      batchDocsWordCts = termCnts
+    }
+    # for each batch do it
+    # if user gives the default value, init the variation distribution q(theta|gamma), 
+    batchDocsSize = nrow(batchDocsWordIds) # total number of documents in this batch
+    if (nrow(Gamma) == 1 & ncol(Gamma) == 1) {  # we are passed the default Gamma and hence need to init it
+      Gamma = get_random_gamma(batchDocsSize, K)
+    }
+  
+    [updatedGamma, updatedLambda] = batch_variational_sufficient_stats(
+                                      batchDocsWordIds, batchDocsWordCts,
+                                      Gamma, Lambda,
+                                      W, K, corpusSize, 
+                                      alpha, eta, tau0, kappa, updatect
+                                    )
+
+  
+    # calculate the rekative improvement in Lambda
+    prevVarMeanTol = varMeanTol
+    # for next iteration set the values
+
+    varMeanTol=mean( abs(updatedLambda-Lambda) / Lambda)
+    print("**INFO** => OnlineVariationalBayes itertion = " + varIter
+           + "; Avg((Lambda(t)-Lambda(t-1))/Lambda(t-1)=" + varMeanTol)
+   
+
+   
+    Lambda = updatedLambda
+    updatect = updatect + 1
+    varIter = varIter + 1
+
+    if (debug >= 5) {
+      ignore=printm("M_updatedLambda", updatedLambda) #DEBUG CODE
+    }
+  }
+
+  newUpdateCnt = updatect
+  # end for each batch
+}
+
+
+
+#@NOTE: in future, all the extra arguement will be reduced as we will have struct/class in system dml
+#@description: find the batch of documents sufficient stats lambda.
+#              It first calculate the sufficient stats for all the docs in the batch and aggregate/merge the batchLambda
+#              which is the sufficient stats for the batch.  The new updated lambda is weighted average of the 
+#              older lambda and the batch's lambda.
+#@output: the variational sufficient stats i.e new upDatedGamma and new updatedLambda
+batch_variational_sufficient_stats = function(
+  matrix[double] batchDocsWordIds, # the batchDocsXdocsId matrix
+  matrix[double] batchDocsWordCts, # thebatchDocsXwordCnts matrix
+  matrix[double] Gamma,
+  matrix[double] Lambda,
+  int W, # number of words in the vocab
+  int K, # number of topics
+  double corpusSize, # total number of documents
+  double alpha, # dir parameter for topic distribution per doc of true distribution. #usually  = 1.0/K 
+  double eta, # dir parameter word distribution per topic. for the  = 1.0/K  # usually 1/K
+  double tau0, # A (positive) learning parameter that downweights early iterations 
+  double kappa, # Learing rate we choose 0.7 # must be [0.5, 1) 
+  double updatect
+) return (matrix[double] updatedGamma, matrix[double] updatedLambda) {
+  debug = debug()  
+  if (nrow(batchDocsWordIds) != nrow(batchDocsWordCts)) {
+    stop("batchDocsWordIds and batchDocsWordCts much match")
+  }
+  batchDocsSize = nrow(batchDocsWordIds) # total number of documents in this batch
+
+  
+  [Elogbeta, expElogbeta] = dirichlet_expected_loglikelihood(Lambda)
+  
+
+  
+# begin variational bayes
+  
+
+  batchDocsSStats = matrix(0.0, rows=K, cols=W)
+  batchDocsSStats3Dto2D = matrix(0.0, rows=K*W, cols=batchDocsSize)
+  #init the variation distribution q(theta|gamma)
+  gamma = Gamma
+  
+  #ignore=printm("M_gamma", gamma)
+  # do all the E steps in parallel par
+  #parfor (docId in 1:batchDocsSize, check=0) {
+  for (docId in 1:batchDocsSize, check=0) {  
+    #ids = wordids[d,]
+    #cts = wordcts[d,]
+    #note that we work with column vectors so we need extra tranpose. Hopefully compiler optimizer will take care of this
+    docWordIds = t(batchDocsWordIds[docId,])
+    docWordCts = t(batchDocsWordCts[docId,])
+    gammad = gamma[docId, ]
+    
+    [docGamma, docSStatsCompact] = doc_variational_sufficient_stats(
+                                     docWordIds, docWordCts, 
+                                     gammad, expElogbeta, 
+                                     alpha, K,
+                                     updatect,
+                                     docId
+                                   )
+                      
+    gamma[docId,] = docGamma
+   
+    # since sstatsd is not aligned wrt the KXW matrix aligned it
+    docSStats = maligncols(docSStatsCompact, docWordIds, W, "cols")
+    #@NOTE, @TODO: 1) discuss with team, if we want to support the aggregate in the parfor loop
+    docSStats1D = matrix(docSStats, rows=K*W, cols=1)
+    cw = ncol(docSStats1D) 
+    # note the following line can be simplify since cw == 1, but keeping it for the purpose of explaination
+    batchDocsSStats3Dto2D[,(docId-1)*cw+1:docId*cw] = docSStats1D
+    #batchDocsSStats3Dto2D[,(docId-1)+1:docId] = docSStats1D
+
+    if (debug >= 10) {
+      print("**DEBUG** => [Level="+debug+"] begin docId="+docId+" Sufficient Stats")
+      ignore=printm("M_docSStats", docSStats) 
+      print("**DEBUG** => [Level="+debug+"] end docId="+docId+" Sufficient Stats")
+    }
+    
+  }
+  updatedGamma = gamma # output
+  batchDocsSStats=matrix(rowSums(batchDocsSStats3Dto2D), rows=K, cols=W)
+
+  # M steps
+  # Maximize the resulting lower bound
+  batchDocsSStats = batchDocsSStats * expElogbeta
+  
+  # rhot = [0,1]  and says how much weight we want to give to the mini batch
+  # note 
+  #  - 1) that at it is exponential in nature to the updatect which is the number of batches we process. 
+  #       so it is giving more weight to the prior lambda. 
+  #  - 2) when kappa == 0, then it reduces to 1 meaning , we give 100% weight to the last batch and 0 to the previous stats and it is not likely to converge
+  #  - 3) when kappa == 1, then it reduces to simple weighted average
+  #  - 3) usually kappa is (0.5, 1) and we choose 0.7, it that case it will converge
+  rhot = (tau0  + updatect)^-kappa
+
+  # Lambda batch is the controbution to the direchlet variational hyper parameter lambda by this batch of docs
+  LambdaBatch = eta + batchDocsSStats*corpusSize/batchDocsSize
+ 
+  # calculate the new weighted direchlet variational hyper parameter lambda on the older lambda and the batch lambda
+  # since 0 < rhot < 1, we can view the newLambda as the comvex combination of oldLambda and batchLambda for each batch.
+  # geometrically, we can view this as refining the convex hull of Lambda in every update. Since rhot is more closer to 0
+  # each new batch contribition is comparatively small.
+  # note that is nice to compare the following result with the MAP vs ML estimates. LambdaBatch is the current observations
+  # and Lamda is the prior and since prior is a collection of all the numerous docs stats so far, we expect it to give more 
+  # weights and hence rhot usually close to small number (i.e zero)
+  updatedLambda = Lambda * (1-rhot) + LambdaBatch*rhot
+  
+
+  if (debug >= 10) { #@TODO may be we can write to the disk/hdfs
+    print("**DEBUG** => [Level="+debug+"] begin Model Lambda at update Count="+updatect)
+    ignore=printm("M_batchDocsSStats3Dto2D", batchDocsSStats3Dto2D) #DEBUG CODE
+    ignore=printm("M_batchDocsSStats_2", batchDocsSStats) #DEBUG CODE
+    ignore=printm("M_LambdaBatch", LambdaBatch) #DEBUG CODE
+    ignore=printm("M_updatedLambda", updatedLambda) #DEBUG CODE
+    print("**DEBUG** => [Level="+debug+"] end Model Lambda at update Count="+updatect)
+  }
+  
+  
+}
+
+
+#@description: find the topic variational param i.e gamma for the doc, which is represented by termVector and 
+#              term counts. 
+#              NOTE:An optimization (Lee, Seung: Algorithms for non-negative matrix factorization, NIPS 2001)
+#              avoids explicit computation of variational parameter `phi`. in the E steps
+#@output: the variational parameters {gamma, sstats}
+#          sstats = function(constant(expElogbeta), termCntVector, phi)
+doc_variational_sufficient_stats = function(
+  matrix[double] termVector,
+  matrix[double] termCounts,
+  matrix[double] gammad,
+  matrix[double] expElogbeta,
+  double alpha,
+  int K, # size of the topics
+  int updatect,  # for debug msg
+  int docId      #for debug msg
+) return (matrix[double] updatedGammad, matrix[double] sstatsd) {
+  debug = debug()  
+  # begin variational bayes
+  ids = termVector
+  cts = termCounts
+  
+  [Elogthetad, expElogthetad] = dirichlet_expected_loglikelihood(gammad)
+  #ignore = printm("M_Elogthetad", Elogthetad); ignore = printm("M_expElogthetad", expElogthetad) #DEBUG CODE
+  
+  expElogbetad = mcols(expElogbeta, ids)
+  #ignore = printm("M_expElogbetad", expElogbetad ) # DEBUG CODE
+  phiNorm = mdot(t(expElogthetad), expElogbetad)
+  phiNorm = phiNorm + 1e-100 # to account for the zero dot product
+  #ignore = printm("M_phiNorm", phiNorm) #DEBUG CODE
+
+  # do the EM steps. Iterate between gamma and phi until convergence
+  meanchange = 0
+  #@TODO: do we need to pass from user? for now we will not and after discussion we will decide.
+  meanchangethresh = 1e-03 # @TODO get it from user
+  #@TODO: do we need to pass from user? for now we will not and after discussion we will decide.
+  e_max_it = 100 # should be 100 @TODO get it from user
+
+  
+  meanchange = 1.0  
+  e_it = 1
+  while (meanchange > meanchangethresh & e_it <= e_max_it) { 
+    # store the last result to calculate the mean change
+    lastgammad = gammad
+   
+    #we represent phi implicitly to save memory and time. 
+    tmp_gammad = mdot(t(t(cts)/phiNorm), t(expElogbetad))
+    gammad = alpha + expElogthetad*(tmp_gammad)
+    #ignore=printm("M gammad at it ", gammad) #DEBUG CODE
+
+    [Elogthetad, expElogthetad] = dirichlet_expected_loglikelihood(gammad)
+    #ignore=printm("M_etd1", Elogthetad);ignore=printm("M_eetd1", expElogthetad) #DEBUG CODE
+    phiNorm=mdot(t(expElogthetad), expElogbetad)
+    #ignore = printm("M_pn1", phiNorm) #DEBUG CODE
+
+    meanchange=mean(abs(gammad-lastgammad))
+    #print("meanchange="+meanchange) # DEBUG CODE
+    if (debug >= 3) {
+      print ("**INFO** => "
+               + "updateCount=" + updatect + ";"
+               + "docId=" + docId + ";"
+               + "Gamma Iteration Id = " + e_it + ";"
+               + "meanchange = " + meanchange);
+    }
+
+    e_it = e_it + 1 
+  }
+  #return the sufficient stats for a doc
+  updatedGammad = gammad 
+  sstatsd = outer(t(expElogthetad), t(cts)/phiNorm, "*")
+  if (debug >= 10) {
+    ignore=printm("M_doc_variational_sufficient_stats:gammad", updatedGammad)
+    ignore=printm("M_doc_variational_sufficient_stats:sstatsd", sstatsd)
+  }
+#end of variational topic_inference
+}
+
+
+# @assumption, we assume that the vectors are represented as the columns
+# @ref https://www.cs.princeton.edu/~blei/papers/BleiNgJordan2003.pdf Appendix A.1
+# @description: the special property of the expected value of log of dirichlet distribution is 
+#               that we can calculate it in the closed form very easily as per the ref.
+#               and hence the posterior calculation is easier.
+# @input: hyperparam
+# @output: ElogDist: E[log(RV)] where RV ~ Dir(hyperparams)
+# @output: expElogDist: exponential of ElogDist which is kind of E[RV]
+#          because of jensen's inequality exp(E[log(RV)]) <= exp(log(E(RV))) == E(RV)
+dirichlet_expected_loglikelihood = function (matrix[double] hyperparams)
+return (matrix[double] ELogRV, matrix[double] expELogRV) {
+  dig_hyperparams = digamma(hyperparams)
+  sum_hyperparams = rowSums(hyperparams)
+  dig_sum_hyperparams = digamma(sum_hyperparams)
+  ELogRV = dig_hyperparams - dig_sum_hyperparams
+  expELogRV = exp(ELogRV)
+}
+
+#@description:A convenient wrapper over library gamma random variable. Here we assume the shape and scale for this DML
+#@input: rows, cols: shape of the output
+#@output: matrix of dim(rows X cols), where each cell is the random gamma sample drawn from shape=100 and scale=1/100
+get_random_gamma = function(int rows, int cols) 
+return (matrix[double] gamma) {
+  # since we are initializing the random gamma
+  # the choice of shape and scale parameters are arbitary.
+  # also our current implementation of random gamma accepts only the integer shape
+  shape = 100 
+  scale = 1.0/100.0
+  gamma = rgamma(shape, scale, rows, cols) # size of gamma 
+   
+}
+
+#include "math/special/DiGamma.dml"
+#include "math/random/GammaDistribution.dml"
+#include "math/matrix/MatrixOps.dml"
+
+

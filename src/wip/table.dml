@@ -1,0 +1,28 @@
+X1 = matrix("1 2 3 4 5 6 7 8 9 10 11 12 13 14 15", rows=3, cols=5)
+X2 = matrix("1 2 3 4 5 6 7 8 9 10 11 12 13 14 15", rows=3, cols=5)
+M = matrix("2 4 5", rows=3, cols=1)
+A = seq(1, 3, 1)
+#A = matrix("1 1", rows=2, cols=1)
+#A = matrix("1", rows=1, cols=1)
+
+ignore = printm("M_A", A)
+
+T = table(A, M)
+
+
+#T=table (seq (1, nrow(M), 1), M, nrow(M), max(M)) 
+T=table (seq (1, nrow(M), 1), M, nrow(M), 10)
+#T=table (seq (1, nrow(M), 1), M, nrow(M), max(M))
+#T = table(A, M, 6, 6)
+
+T1 = T[,2]
+
+ignore = printm("M_T", T)
+ignore = printm("M_T1", T1)
+ST = t(T1) %*% X2
+ignore = printm("M_X", X2)
+ignore = printm("M_ST", ST)
+/*
+*/
+
+#include "io/io.dml"

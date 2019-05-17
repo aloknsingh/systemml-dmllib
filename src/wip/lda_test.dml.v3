@@ -1,0 +1,294 @@
+#Arguments:
+#        K: Number of topics
+#        vocab: A set of words to recognize. When analyzing documents, any word
+#           not in this set will be ignored.
+#        D: Total number of documents in the population. For a fixed corpus,
+#           this is the size of the corpus. In the truly online setting, this
+#           can be an estimate of the maximum number of documents that
+#           could ever be seen.
+#        alpha: Hyperparameter for prior on weight vectors theta
+#        eta: Hyperparameter for prior on topics beta
+#        tau0: A (positive) learning parameter that downweights early iterations
+#        kappa: Learning rate: exponential decay rate---should be between
+#             (0.5, 1.0] to guarantee asymptotic convergence.
+#
+#        Note that if you pass the same set of D documents in every time and
+#        set kappa=0 this class can also be used to do batch VB.
+#
+# Initialize the algorithm with alpha=1/K, eta=1/K, tau_0=1024, kappa=0.7
+    
+W = 5 # num of words in the vocab
+K = 2 # num of topics
+V = 5 # vocab in the batch
+D = 1 # total number of documents
+alpha = 1.0/K 
+eta = 1.0/K  # usually 1/K
+tau0 = 1024 + 1
+kappa = 0.7 # must be [0.5, 1) 
+updatect = 0
+
+
+#Init the variational distribution q(beta|lambda)
+Lambda = get_random_gamma(K, W) #TODO init by random func 
+#ALOK DEBUG
+Lambda = matrix("0.96307558 1.05341124 0.91342724 0.9911178 1.09593632 1.1080743 0.90388002 0.99404929 0.83463754 0.97659028", rows=2, cols=5)
+
+[Elogbeta, expElogbeta] = dirichlet_expectation_logposterior(Lambda)
+
+# rhot is in (0, 1) and says how much weight we want to give to the mini batch
+base = tau0 + updatect
+nkappa = -kappa
+rhot = pows(base, nkappa)
+
+elbo_max_iteration = 1 # should be 100 later
+elbo_target = 0.00001
+#print("exp(log(10))" + exp(log(10)))
+Sstats = matrix(0.0, rows=K, cols=W)
+
+# for testing
+ids = matrix("1 2 3 4 5", rows=5, cols=1)
+#ids = matrix("0 1 2 3 4", rows=1, cols=5)
+cts = matrix("6 2 2 3 4", rows=5, cols=1)
+
+#ids = wordids[d,]
+#cts = wordcts[d,]
+batchD = 1 # should be given as input
+
+
+sstats = matrix(0.0, rows=K, cols=W)
+
+
+meanchange = 1.0  
+
+elbo_it = 1
+#init the variation distribution q(theta|gamma)
+gamma = get_random_gamma(batchD, K)
+docId = 1
+gammad = gamma[docId,]
+gammad = matrix("0.93880941 0.8567902", rows=1, cols=K) #ALOK debug
+ignore=printm("M_gammad", gammad)
+[Elogthetad, expElogthetad] = dirichlet_expectation_logposterior(gammad)
+#ignore = printm("M_Elogthetad", Elogthetad); expElogbetad = expElogbeta[,ids]
+ignore = printm("M_expElogthetad", expElogthetad)
+ignore = printm("M_ids", ids)
+expElogbetad = mcols(expElogbeta, ids)
+ignore = printm("M_expElogbetad", expElogbetad )
+phiNorm = mdot(t(expElogthetad), expElogbetad)
+phiNorm = phiNorm + 1e-100 # to account for the zero dot product
+ignore = printm("M_phiNorm", phiNorm)
+
+# do the EM steps. Iterate between gamma and phi until convergence
+meanchange = 0
+meanchangethresh = 1e-03
+e_it = 1
+e_max_it = 1
+while (meanchange < meanchangethresh & e_it <= e_max_it) { #try 1e-03
+	print ("Iteration Id = " + e_it)
+	# store the last result to calculate the mean change
+	lastgammad = gammad
+	# do the EM steps
+	
+	# DEBUG CODE
+	# t1=t(cts)/phiNorm
+	# ignore=printm("M_t1", t1)
+	# t2=mdot(t(t1), t(expElogbetad))
+	# ignore=printm("M_t2", t2)
+	# t3=expElogthetad*t2
+	# ignore=printm("M_t3", t3)
+	# gammad = alpha + t3
+
+	#we represent phi implicitly to save memory and time. 
+	tmp_gammad = mdot(t(t(cts)/phiNorm), t(expElogbetad))
+	gammad = alpha + expElogthetad*(tmp_gammad)
+	ignore=printm("M gammad at it ", gammad)
+
+	[Elogthetad, expElogthetad] = dirichlet_expectation_logposterior(gammad)
+    #ignore=printm("M_etd1", Elogthetad); ignore=printm("M_eetd1", expElogthetad)
+    phiNorm=mdot(t(expElogthetad), expElogbetad)
+    ignore = printm("M_pn1", phiNorm)
+
+    meanchange=mean(abs(gammad-lastgammad))
+    print("meanchange="+meanchange)
+	
+
+	e_it = e_it + 1 
+}
+gamma[docId,] = gammad
+sstats_ids = mcols(sstats, ids)
+sstats_ids = sstats_ids + outer(t(expElogthetad), t(cts)/phiNorm, "*")
+
+sstats = msetcols(sstats, sstats_ids, ids)
+ignore = printm("M_sstats_1", sstats)
+
+sstats = sstats * expElogbeta
+
+ignore = printm("M_sstats_2", sstats)
+
+#print("rhot = " + rhot) #DEBUG
+
+LambdaBatch = eta + sstats*D/batchD
+ignore=printm("M_LambdaBatch", LambdaBatch)
+Lambda = Lambda * (1-rhot) + LambdaBatch*rhot
+ignore=printm("M_Lambda", Lambda)
+[Elogbeta, expLogbeta] = dirichlet_expectation_logposterior(Lambda)
+updatect = updatect + 1
+
+[gamma, sstats] =lda_e_step(W, K, V, D, alpha, eta, tau0, kappa, updatect)
+
+#@NOTE: in future, all the extra arguement will be reduced as we will have struct/class in system dml
+lda_e_step = function(
+  int W, # number of words in the vocab
+  int K, # number of topics
+  int V, # number of vocab in the batch
+  double D, # total number of documents
+  double alpha, # dir parameter for topic distribution per doc of true distribution. #usually  = 1.0/K 
+  double eta, # dir parameter word distribution per topic. for the  = 1.0/K  # usually 1/K
+  double tau0, # A (positive) learning parameter that downweights early iterations 
+  double kappa, # Learing rate we choose 0.7 # must be [0.5, 1) 
+  int updatect
+
+) return (matrix[double] gamma, matrix[double] sstats) {
+  gamma = matrix(0, rows=1, cols=1)
+  sstats = matrix(0, rows=1, cols=1)
+ 
+  #Init the variational distribution q(beta|lambda)
+  Lambda = get_random_gamma(K, W) #TODO init by random func 
+  #ALOK DEBUG
+  Lambda = matrix("0.96307558 1.05341124 0.91342724 0.9911178 1.09593632 1.1080743 0.90388002 0.99404929 0.83463754 0.97659028", rows=2, cols=5)
+
+  [Elogbeta, expElogbeta] = dirichlet_expectation_logposterior(Lambda)
+  
+
+  # rhot is in (0, 1) and says how much weight we want to give to the mini batch
+  rhot = (tau0  + updatect)^-kappa
+  elbo_max_iteration = 1 # should be 100 later
+  elbo_target = 0.00001
+  #print("exp(log(10))" + exp(log(10)))
+  Sstats = matrix(0.0, rows=K, cols=W)
+
+  # for testing
+  ids = matrix("1 2 3 4 5", rows=5, cols=1)
+  #ids = matrix("0 1 2 3 4", rows=1, cols=5)
+  cts = matrix("6 2 2 3 4", rows=5, cols=1)
+
+  #ids = wordids[d,]
+  #cts = wordcts[d,]
+  batchD = 1 # should be given as input
+
+
+  sstats = matrix(0.0, rows=K, cols=W)
+
+
+  meanchange = 1.0  
+
+  elbo_it = 1
+  #init the variation distribution q(theta|gamma)
+  gamma = get_random_gamma(batchD, K)
+  docId = 1
+  gammad = gamma[docId,]
+  gammad = matrix("0.93880941 0.8567902", rows=1, cols=K) #ALOK debug
+  ignore=printm("M_gammad", gammad)
+  [Elogthetad, expElogthetad] = dirichlet_expectation_logposterior(gammad)
+  #ignore = printm("M_Elogthetad", Elogthetad); ignore = printm("M_expElogthetad", expElogthetad)
+  ignore = printm("M_ids", ids)
+  expElogbetad = mcols(expElogbeta, ids)
+  ignore = printm("M_expElogbetad", expElogbetad )
+  phiNorm = mdot(t(expElogthetad), expElogbetad)
+  phiNorm = phiNorm + 1e-100 # to account for the zero dot product
+  ignore = printm("M_phiNorm", phiNorm)
+
+  # do the EM steps. Iterate between gamma and phi until convergence
+  meanchange = 0
+  meanchangethresh = 1e-03
+  e_it = 1
+  e_max_it = 1
+
+  while (meanchange < meanchangethresh & e_it <= e_max_it) { #try 1e-03
+	  print ("Iteration Id = " + e_it)
+	  # store the last result to calculate the mean change
+	  lastgammad = gammad
+	  # do the EM steps
+	
+	  # DEBUG CODE
+	  # t1=t(cts)/phiNorm
+	  # ignore=printm("M_t1", t1)
+	  # t2=mdot(t(t1), t(expElogbetad))
+	  # ignore=printm("M_t2", t2)
+	  # t3=expElogthetad*t2
+	  # ignore=printm("M_t3", t3)
+	  # gammad = alpha + t3
+
+	  #we represent phi implicitly to save memory and time. 
+	  tmp_gammad = mdot(t(t(cts)/phiNorm), t(expElogbetad))
+	  gammad = alpha + expElogthetad*(tmp_gammad)
+	  #ignore=printm("M gammad at it ", gammad)
+
+	  [Elogthetad, expElogthetad] = dirichlet_expectation_logposterior(gammad)
+    #ignore=printm("M_etd1", Elogthetad);ignore=printm("M_eetd1", expElogthetad)
+    phiNorm=mdot(t(expElogthetad), expElogbetad)
+    #ignore = printm("M_pn1", phiNorm)
+
+    meanchange=mean(abs(gammad-lastgammad))
+    print("meanchange="+meanchange)
+	
+
+  	e_it = e_it + 1 
+  }
+
+  gamma[docId,] = gammad
+  sstats_ids = mcols(sstats, ids)
+  sstatsd_tmp=outer(t(expElogthetad), t(cts)/phiNorm, "*")
+  ignore=printm("M_doc_variational_sufficient_stats:gammad", gammad)
+  ignore=printm("M_doc_variational_sufficient_stats:sstatsd", sstatsd_tmp)
+  
+  sstats_ids = sstats_ids + outer(t(expElogthetad), t(cts)/phiNorm, "*")
+
+  sstats = msetcols(sstats, sstats_ids, ids)
+  ignore = printm("M_sstats_1", sstats)
+
+  sstats = sstats * expElogbeta
+
+  ignore = printm("M_sstats_2", sstats)
+
+  #print("rhot = " + rhot) #DEBUG
+
+  LambdaBatch = eta + sstats*D/batchD
+  ignore=printm("M_LambdaBatch", LambdaBatch)
+  Lambda = Lambda * (1-rhot) + LambdaBatch*rhot
+  ignore=printm("M_Lambda", Lambda)
+  [Elogbeta, expLogbeta] = dirichlet_expectation_logposterior(Lambda)
+  updatect = updatect + 1
+       /*
+  */
+}
+
+# Assumption, we assume that the vectors are represented as the columns
+#ref https://www.cs.princeton.edu/~blei/papers/BleiNgJordan2003.pdf Appendix A.1
+# @input: hyperparam
+# @output: ElogDist: E[log(RV)] where RV ~ Dir(hyperparams)
+# @output: expElogDist: exponential of ElogDist which is kind of E[RV]
+#          because of jensen's inequality exp(E[log(RV)]) <= exp(log(E(RV))) == E(RV)
+dirichlet_expectation_logposterior = function (matrix[double] hyperparams)
+return (matrix[double] ELogRV, matrix[double] expELogRV) {
+  dig_hyperparams = digamma(hyperparams)
+  sum_hyperparams = rowSums(hyperparams)
+  dig_sum_hyperparams = digamma(sum_hyperparams)
+  ELogRV = dig_hyperparams - dig_sum_hyperparams
+  expELogRV = exp(ELogRV)
+}
+
+get_random_gamma = function(int rows, int cols) 
+return (matrix[double] gamma) {
+  # since we are initializing the random gamma
+  # the choice of shape and scale parameters are arbitary
+  shape = 100 
+  scale = 1.0/100.0
+  gamma = random_gamma(shape, scale, rows, cols) # size of gamma #TODO initialize randomly
+   
+}
+
+#include "math/special/DiGamma.dml"
+#include "math/random/GammaDistribution.dml"
+#include "math/matrix/MatrixOps.dml"
+#include "math/functions/*.dml"
+

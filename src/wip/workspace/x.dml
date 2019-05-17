@@ -1,0 +1,65 @@
+
+sq = function(double z) return (double sq) { sq = z*z}
+
+printm = function(matrix[double] M) return (matrix[double] M) {
+  for (i in 1:nrow(M)) {
+    for (j in 1:ncol(M)) {
+       e = as.scalar(M[i,j])
+       print(" " + i + " " + j + " " + e)
+    }
+  }
+  print("")
+  M = M
+
+}
+
+
+printm2 = function(string name, matrix[double] M) return (matrix[double] M) {
+  print("printing matrix = " + name)
+  for (i in 1:nrow(M)) {
+    for (j in 1:ncol(M)) {
+       e = as.scalar(M[i,j])
+       print(" " + i + " " + j + " " + e)
+    }
+  }
+  print("done printing matrix = " + name)
+  M = M
+}
+
+s = function(string name) return (string name) {
+  name = name
+}
+
+
+inf = 1.0/0.0
+nan = 0.0/0.0
+
+M1=matrix(inf, rows=2, cols=2)
+#M1=printm(M1)
+
+M2=matrix(nan, rows=2, cols=2)
+#M2=printm(M2)
+
+M3=matrix(1.0, rows=2, cols=2)
+#M3=printm(M3)
+
+MM=append(append(M1, M2), M3)
+
+MM=printm(t(MM))
+
+PP1=ppred(MM, inf, "!=")
+ignore=printm(PP1)
+s1 = s("PP1")
+#s1 = "PP1"
+ignore=printm2(s1, PP1)
+
+PP2=ppred(MM, nan, "==")
+PP2=printm(PP2)
+
+RR1=replace(target=MM, pattern=nan, replacement=0)
+ignore=printm(RR1)
+
+
+
+
+

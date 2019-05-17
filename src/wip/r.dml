@@ -1,0 +1,3 @@
+#ignore=read("workspace/lda_data/lda_ids.mtx")
+#ignore=read("/Users/singhal/IBM/SystemML/Alok:dmllib/workspace/lda_data/ldaids.mtx")
+ignore=read("./workspace/lda_data/ldaids.mtx")

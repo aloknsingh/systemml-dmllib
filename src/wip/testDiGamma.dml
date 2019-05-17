@@ -1,0 +1,147 @@
+#include "math/special/DiGamma.dml"
+#include "io/io.dml"
+/* 
+#BEGIN TEST    
+psi = sdigamma(1000)
+print("sdigamma(1000)="+psi)
+
+psi = sdigamma(100)
+print("sdigamma(100)="+psi)
+
+psi = sdigamma(35)
+print("sdigamma(35)="+psi)
+
+psi = sdigamma(30)
+print("sdigamma(30)="+psi)
+
+psi = sdigamma(15.8)
+print("sdigamma(15.8)="+psi)
+
+psi = sdigamma(10)
+print("sdigamma(10)="+psi)
+
+psi = sdigamma(2)
+print("sdigamma(2)="+psi)
+
+psi = sdigamma(1.5)
+print("sdigamma(1.5)="+psi)
+
+psi = sdigamma(0.01)
+print("sdigamma(0.01)="+psi)
+
+psi = sdigamma(0.0)
+print("sdigamma(0.0)="+psi)
+
+psi = sdigamma_it(0.0)
+print("sdigamma_it(0.0)="+psi)
+
+psi = sdigamma(-10.5)
+print("sdigamma(-10.5)="+psi)
+
+psi = sdigamma_it(-10.5)
+print("sdigamma_it(-10.5)="+psi)
+
+#compare recur and it digamma
+#
+print("BEGIN TEST digamma vs digamma_it")
+for ( i in 1:50) {
+ for (j in 2:2) {
+   z = 0.0 + i + 1.0/j
+   psi1 = sdigamma(z)
+   psi2 = sdigamma_it(z)
+   rsd = psi1-psi2
+   if (rsd < 1e-10) {
+     rsd = 0.0
+   }
+   if (rsd != 0.0) {
+     print("  sdigamma("+z+")-sdigamma_it("+z+")="+rsd)
+   } else {
+     #print("  digamma("+z+")-digamma_it("+z+")="+rsd)
+   }
+ }
+}
+print("END TEST digamma vs digamma_it")
+
+#double NaN and Inf test
+Inf = 1.0/0.0
+NaN = 0.0/0.0
+
+if (-1.0/0.0 == NaN) {
+  print("inf==Infinity")
+}
+print("inf="+Inf)
+print("nan="+NaN)
+
+d1 = NaN-NaN
+print("NaN-NaN="+d1)
+
+
+
+psi = sdigamma_it(15.8)
+print("sdigamma_it(15.8)="+psi)
+
+psi = sdigamma_it(10)
+print("sdigamma_it(10)="+psi)
+
+psi = sdigamma_it(1.5)
+print("sdigamma_it(1.5)="+psi)
+
+psi = sdigamma_lancoz(100)
+print("sdigamma_lancoz(100)="+psi)
+
+
+
+psi = gamma_lancoz(12)
+print("gamma_lancoz(12)="+psi)
+
+psi = digamma_lancoz(12)
+print("digamma_lancoz(12)="+psi)
+
+psi = gamma_lancoz(12)
+print("gamma_lancoz(12)="+psi)
+
+psi = sdigamma(12)
+print("sdigamma(12)="+psi)
+*/
+
+# parallel digamma
+#Z = seq(45,55, 1)
+Z = matrix("-5 -3.4 0 1e-6 1e-7 1.5 10 15.8 50 60 100 1000", 2, 6)
+Psi = digamma(Z)
+#ignore = printm("M_Psi", Psi)
+ignore = printm("M_Psi", Psi)
+
+print("BEGIN golden out digamma(Eij)")
+for (i in 1:nrow(Psi)) {
+  for (j in 1:ncol(Psi)) {
+    p_psi = as.scalar(Psi[i,j])
+    z = as.scalar(Z[i,j])
+    s_psi = sdigamma(z)
+    rsd = p_psi-s_psi
+    if (rsd < 1e-8) {
+      rsd = 0.0
+    }
+    if (rsd != 0.0) {
+       print("ERROR (rsd=" + rsd + ") => " +  z + " = Z(" + i + "," + j + ") => p_psi=" + p_psi + "; s_psi=" + s_psi)
+    } else {
+      #print(" " + z + " = Z(" + i + "," + j + ") => p_psi=" + p_psi + "; s_psi=" + s_psi)
+    }
+  }
+}
+print("END golden out digamma(Eij)")
+
+psi = sdigamma(0)
+print("sdigamma(0)="+psi)
+
+psi = sdigamma_it(0)
+print("sdigamma_it(0)="+psi)
+
+psi = sdigamma_it(1.5)
+print("sdigamma_it(1.5)="+psi)
+/*
+psi = sdigamma_it(10)
+print("sdigamma_it(10)="+psi)
+
+psi = sdigamma_it(15.8)
+print("sdigamma_it(15.8)="+psi)
+*/

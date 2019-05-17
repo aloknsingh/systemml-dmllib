@@ -1,0 +1,372 @@
+
+ignore = test_mequals()
+ignore = test_mcols()
+ignore = test_mrows()
+ignore = test_msetcols()
+ignore = test_msetrows()
+ignore = test_mdot()
+
+test_mequals = function() return() {
+  
+  print("running test_mequals")
+  M1=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  M2=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  M3=matrix("1 2 3 4 5 6 7  8 9 10", rows=5, cols=2)
+  M4=matrix("10 2 3 4 5 6 7  8 9 10", rows=5, cols=2)
+
+  res12 = mequals(M1, M2)
+  if (res12 != 1) {
+    stop("failed M1 == M2")
+  }
+
+  res23 = mequals(M2, M3)
+  if (res23 != 0) {
+    stop("failed M2 != M3")
+  }
+
+  res34 = mequals(M3, M4)
+  if (res34 != 0) {
+    stop("failed M3 != M4")
+  }
+  print("mequals test passed")
+  print("____________________________")
+}
+
+test_mcols2 = function() return () {
+  print("running test_mcols")
+  M=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+
+  # mcols test
+  C=matrix("2 4", rows=2, cols=1)
+
+  N = mcols(M, C)
+  ignore=printm("M_N", N)
+
+  N_exp = matrix("2 4 7 9", rows=2, cols=2)
+  ignore=printm("M_N_exp", N_exp)
+
+  isequal = mequals(N, N_exp)
+  if (isequal) {
+    print("mcols passed")
+  } else {
+    stop("mcols failed")
+  }
+  print("____________________________")
+}
+
+test_mcols = function() return() 
+{
+  print("running test_mcols")
+  M=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  
+  #case 1
+  C=matrix("2 4", rows=2, cols=1)
+  N_exp = matrix("2 4 7 9", rows=2, cols=2)
+  ignore=test_mcols_impl(M, C, N_exp)
+  print("____________________________")
+  
+  #case 2
+  C=matrix("4", rows=1, cols=1)
+  N_exp = matrix("4 9", rows=2, cols=1)
+  ignore=test_mcols_impl(M, C, N_exp)
+  print("____________________________")
+
+  #case 3
+  C=matrix("2 4 5", rows=3, cols=1)
+  N_exp = matrix("2 4 5 7 9 10", rows=2, cols=3)
+  ignore=test_mcols_impl(M, C, N_exp)
+  print("____________________________")
+
+  #case 4
+  C=matrix("1 2 3 4 5", rows=5, cols=1)
+  N_exp = matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  ignore=test_mcols_impl(M, C, N_exp)
+  print("____________________________")
+
+  print("============================") 
+}
+
+test_mcols_impl = function(
+  matrix[double] M,
+  matrix[double] C,
+  matrix[double] N_exp
+) return () {
+  print("running test_mcols")
+  ignore=printm("M_M", M)
+  # mcols test
+  ignore=printm("M_C", C)
+
+  N = mcols(M, C)
+  ignore=printm("M_N", N)
+  
+  ignore=printm("M_N_exp", N_exp)
+  isequal = mequals(N, N_exp)
+  if (isequal) {
+    print("mcols passed")
+  } else {
+    stop("mcols failed")
+  }
+}
+
+
+test_mrows = function() return () {
+  print("running test_mrows")
+  # mrows test
+  M=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  R=matrix("1", rows=1, cols=1)
+
+  P = mrows(M, R)
+  ignore=printm("M_P", P)
+
+  P_exp = matrix("1 2 3 4 5", rows=1, cols=5)
+  ignore=printm("M_P_exp", P_exp)
+
+  isequal = mequals(P, P_exp)
+  if (isequal) {
+    print("mrows passed")
+  } else {
+    stop("mrows failed")
+  }
+  print("____________________________")
+}
+
+test_msetcols = function() return () {
+  print("running test_mcols")
+  M=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  N=matrix("20 30 40 60", rows=2, cols=2)
+  # mcols test
+  C=matrix("2 4", rows=2, cols=1)
+
+  MN = msetcols(M, N, C)
+  ignore=printm("M_MN", MN)
+
+  MN_exp = matrix("1 20 3 30 5 6 40  8 60 10", rows=2, cols=5)
+  ignore=printm("M_MN_exp", MN_exp)
+
+  isequal = mequals(MN, MN_exp)
+  if (isequal) {
+    print("msetcols passed")
+  } else {
+    stop("msetcols failed")
+  }
+  print("____________________________")
+}
+
+
+test_msetrows = function() return () {
+  print("running test_msetrows")
+  M=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  N=matrix("20 30 40 60 100", rows=1, cols=5)
+  # mcols test
+  C=matrix("1", rows=1, cols=1)
+
+  MN = msetrows(M, N, C)
+  ignore=printm("M_MN", MN)
+
+  MN_exp = matrix("20 30 40 60 100 6 7 8 9 10", rows=2, cols=5)
+  ignore=printm("M_MN_exp", MN_exp)
+
+  isequal = mequals(MN, MN_exp)
+  if (isequal) {
+    print("msetcols passed")
+  } else {
+    stop("msetcols failed")
+  }
+  print("____________________________")
+}
+
+#@description: test code for matrix dot products
+test_mdot = function() return () {
+  print("running test_mdot")
+
+  expElogthetad = matrix("0.38122031  0.32534496", rows=2, cols=1)
+  ignore=printm("M_expElogthetad", expElogthetad)
+
+  expElogbetad = matrix("0.11654062  0.13499789  0.10653695  0.12223767  0.14378144 0.15303758  0.10944634  0.12849357  0.09510771  0.12477721", rows=2, cols=5)
+  ignore=printm("M_expElogbetad", expElogbetad)
+
+  phinorm = mdot(expElogthetad, expElogbetad)
+  ignore=printm("M_phinorm", phinorm)
+
+  phinorm_exp = matrix("0.09421765662758899 0.08707175258459231 0.0824187844973617 0.0775422965567193 0.09540804152540801", rows=1, cols=5)
+
+  isequal = mequals(phinorm, phinorm_exp)
+  if (isequal) {
+    print("passed test_mdot")
+  } else {
+    print("failed test_mdot")
+  }
+  print("____________________________")
+}
+
+
+#include "math/matrix/MatrixOps.dml"
+#dmlpp autogenerated BEGIN including '#include "math/matrix/MatrixOps.dml"'
+
+# @description: It extracts the specified columns from the matrix
+# @input X: matrix
+# @input cols: mx1 matrix of the column index you would like to extract
+# @output Y: is the output matrix contains the extract columns from X
+
+mcols = function(
+  matrix[double] X,
+  matrix[double] cols
+) return (matrix[double] Y) {
+   P= table(seq(1, nrow(cols)), cols, nrow(cols), ncol(X))
+   Y = X %*% t(P)
+}
+
+
+#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
+# multiply to X*Is
+# @description: It extracts the specified columns from the matrix
+# @input X: matrix
+# @input cols: mx1 matrix of the column index you would like to extract
+# @output Y: is the output matrix contains the extract columns from X
+# mcols_pf = function(
+#   matrix[double] X,
+#   matrix[double] cols
+# ) return (matrix[double] Y) {
+#    ry = nrow(X)
+#    cy = nrow(cols)
+#    Y = matrix(0.0, rows=ry, cols=cy)
+#    parfor(r in 1:cy) {
+#      col2ext = as.scalar(cols[r,1])
+#      Y[,r] = X[,col2ext]
+#    }
+# }
+
+#@TODO implement it using the multiplication
+# @description: It extracts the specified rows from the matrix
+# @input X: matrix
+# @input rows: mx1 matrix of the column index you would like to extract
+# @output Y: is the output matrix contains the extract columns from X
+mrows = function(
+  matrix[double] X,
+  matrix[double] rows
+) return (matrix[double] Y) {
+   ry = nrow(rows)
+   cy = ncol(X)
+   Y = matrix(0.0, rows=ry, cols=cy)
+   parfor(r in 1:ry) {
+     row2ext = as.scalar(rows[r,1])
+     Y[r,] = X[row2ext,]
+   }
+}
+
+#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
+# multiply to X*Is
+# @description: It sets the specified columns from the matrix B to the matrix A
+# @input A: matrix whose columns need to be set
+# @input B: the matrix from which the columns will be set in A
+# @input cols: mx1 matrix of the column index you would like to extract from B
+# @output Y: is the output matrix contains the columns from B and the remaining columns from A
+msetcols = function(
+  matrix[double] A,
+  matrix[double] B,
+  matrix[double] cols
+) return (matrix[double] Y) {
+   ry = nrow(A)
+   cy = nrow(cols)
+   if (nrow(cols) != ncol(B)) {
+      stop("msetrows: rows and B doesn't align")
+   }
+   i = 1
+   for(r in 1:cy) {
+     col2ext = as.scalar(cols[r,1])
+     A[,col2ext] = B[,i]
+     i = i + 1
+   }
+   Y = A
+}
+
+#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
+# multiply to X*Is
+# @description: It sets the specified rows from matrix B to matrix A
+# @input A: matrix whose columns need to be set
+# @input B: the matrix from which the columns will be set in A
+# @input rows: mx1 matrix of the column index you would like to extract from B
+# @output Y: is the output matrix contains the columns from B and the remaining columns from A
+msetrows = function(
+  matrix[double] A,
+  matrix[double] B,
+  matrix[double] rows
+) return (matrix[double] Y) {
+   ry = nrow(A)
+   cy = nrow(rows)
+   if (nrow(rows) != nrow(B)) {
+      stop("msetrows: rows and B doesn't align")
+   }
+   i = 1
+   for(r in 1:cy) {
+     row2ext = as.scalar(rows[r,1])
+     A[row2ext,] = B[i,]
+     i = i + 1
+   }
+   Y = A
+}
+
+# @description: It compares if two matrices are cellwise equals. It's a convenient routine
+# @input A, B: matrices to be compared
+# @output isequal: 1 if A==B else 0
+mequals = function(
+  matrix[double] A,
+  matrix[double] B
+) return (int isequal) {
+  if (nrow(A) != nrow(B) | ncol(A) != ncol(B)) {
+    isequal = 0
+  } else {
+    notequal = sum(ppred(A, B, "!="))
+    if (notequal > 0) {
+      isequal = 0
+    } else {
+      isequal =1
+    }
+  }
+}
+
+#@description: dot product of two matrix
+#  We assume that columns represent the vectors
+#@input A: the first vector or the list of vectors represented as cols of matrix .dim==(mxn)
+#@input B: the second vector or the list of vectors represented as the cols of matrix. dim == (mxr)
+#@output D: the dot product tranpose(A) %*% B. dim = (nxr)
+mdot = function(
+ matrix[double] A,
+ matrix[double] B
+) return (matrix[double] D) {
+   ra = nrow(A); ca = ncol(A)
+   rb = nrow(B); cb = ncol(B)
+
+   if (ra != rb) {
+     stop("FATAL: mdot => matrix A(" + ra + "x" + ca + ") and B(" + rb + "x" + cb + ") doesn't align")
+   }
+
+   D = t(A) %*% B
+}
+
+#include "io/io.dml"
+#dmlpp autogenerated BEGIN including '#include "io/io.dml"'
+
+#print the matrixs
+printm_raw = function(matrix[double] M) return (matrix[double] M) {
+  if (nrow(M)*ncol(M) >= 100*100) {
+     stop("print_raw => Matrix is too big to print in stdout! Aborting ... s")
+  }
+  for (i in 1:nrow(M)) {
+    for (j in 1:ncol(M)) {
+       e = as.scalar(M[i,j])
+       print(" " + i + " " + j + " " + e)
+    }
+  }
+  M = M
+}
+
+printm = function(string name, matrix[double] M) return (matrix[double] M) {
+  print("printing matrix = " + name)
+  ignore = printm_raw(M)
+  print("done printing matrix = " + name)
+  M = M
+}
+#dmlpp autogenerated END including '#include "io/io.dml"'
+#dmlpp autogenerated END including '#include "math/matrix/MatrixOps.dml"'
+#include "io/io.dml"

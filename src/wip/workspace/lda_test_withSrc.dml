@@ -1,0 +1,815 @@
+# THIS SCRIPT SOLVES TOPIC MODELLING PROBLEM USING THE Online Variational Bayes Latent Dirichlet Allocation( Online_VB_LDA)
+#
+# ASSUMPTIONS:
+#   Individual docs are represented as the bag of words models.
+#   The input already been pre-processed i.e tokenization, stop word removable, stemming etc are done
+#       one of the ways we can find the vocabulary for the corpus is to use the tfi-df
+#   The each line in input corpus contains termVector
+# INPUT PARAMETERS:
+# --------------------------------------------------------------------------------------------
+# NAME     TYPE     DEFAULT  MEANING
+# --------------------------------------------------------------------------------------------
+# termVecs String    ---     Location (on HDFS) to read document term vector.each line 
+#                                represents the doc and it's content is the id of word from doc in vocab                             
+# termCnts String    ---     Location (on HDFS) to read term counts. Each line represents the doc and it's content 
+#                                is the count of the word whose id is in the termVecs
+# maxd     Int       ---     Only for the online LDA, the estimated maximum documents. (Note this needn't be exact)
+# K        Int       ---     Number of topics in the model
+# W        Int       ---     Number of words in the vocabulary
+# isonline Int        1      Whether we want to run the online or the batch variational bayes LDA
+# alpha    Double    1/K     Dirichlet Hyperparameter for prior on doc' topic weight vectors theta
+# eta      Double    1/K     Dirichlet Hyperparameter for prior on topics word weight (distribution) vector, beta
+# tau0     Int       1024    A (positive) learning parameter that downweights early iterations 
+# kappa    double    0.7     Learning rate: exponential decay rate---should be between
+#                                (0.5, 1.0] to guarantee asymptotic convergence
+# ofmt     String    "text"  Matrix file output format, such as `text`,`mm`, or `csv` 
+# Log      String    " "     Location to store output and variables for monitoring and debugging purposes
+# 
+
+# --------------------------------------------------------------------------------------------
+# OUTPUT: Matrix of KXW matrix of lambda which is the  parameters 
+#
+#
+# HOW TO INVOKE THIS SCRIPT - EXAMPLE:
+# hadoop jar SystemML.jar -f CsplineCG.dml -nvargs X=INPUT_DIR/X Y=INPUT_DIR/Y K=OUTPUT_DIR/K O=OUTPUT_DIR/Out
+# tol=0.001 maxi=100 fmt=csv Log=OUTPUT_DIR/log
+
+
+#Arguments:
+#        K: Number of topics
+#        vocab: A set of words to recognize. When analyzing documents, any word
+#           not in this set will be ignored.
+#        D: Total number of documents in the population. For a fixed corpus,
+#           this is the size of the corpus. In the truly online setting, this
+#           can be an estimate of the maximum number of documents that
+#           could ever be seen.
+#        alpha: Hyperparameter for prior on weight vectors theta
+#        eta: Hyperparameter for prior on topics beta
+#        tau0: A (positive) learning parameter that downweights early iterations
+#        kappa: Learning rate: exponential decay rate---should be between
+#             (0.5, 1.0] to guarantee asymptotic convergence.
+#
+#        Note that if you pass the same set of D documents in every time and
+#        set kappa=0 this class can also be used to do batch VB.
+#
+# Initialize the algorithm with alpha=1/K, eta=1/K, tau_0=1024, kappa=0.7
+
+print("Starting Topic modelling...")    
+W = 5 # num of words in the vocab
+K = 2 # num of topics
+D = 1 # total number of documents
+K = $K
+W = $W
+isonline = ifdef($isonline, 1)
+alpha = ifdef($alpha, 1.0/K) 
+eta = ifdef($alpha, 1.0/K)  # usually 1/K
+tau0 = ifdef($tau0, 1024)
+tau0 = tau0 + 1 # case when the user passes in 0
+kappa = ifdef($kappa, 0.7) # must be [0.5, 1) 
+Log = ifdef($Log, " ")
+
+batchDocsIds = read($termVecs)
+batchDocsCnts = read($termCnts)
+
+updatect = 0
+
+
+# for testing # ALOK_DEBUG
+batchDocsIds = matrix("1 2 3 4 5", rows=1, cols=5)
+batchDocsCts = matrix("6 2 2 3 4", rows=1, cols=5)
+[gamma, sstats] = online_VB_LDA(batchDocsIds, batchDocsCts, W, K, D, alpha, eta, tau0, kappa, updatect)
+
+print("Ending topic modelling")
+
+#@NOTE: in future, all the extra arguement will be reduced as we will have struct/class in system dml
+online_VB_LDA = function(
+  matrix[double] batchDocsWordIds, # the batchDocsXdocsId matrix
+  matrix[double] batchDocsWordCts, # thebatchDocsXwordCnts matrix
+  int W, # number of words in the vocab
+  int K, # number of topics
+  double corpusSize, # total number of documents
+  double alpha, # dir parameter for topic distribution per doc of true distribution. #usually  = 1.0/K 
+  double eta, # dir parameter word distribution per topic. for the  = 1.0/K  # usually 1/K
+  double tau0, # A (positive) learning parameter that downweights early iterations 
+  double kappa, # Learing rate we choose 0.7 # must be [0.5, 1) 
+  int updatect
+) return (matrix[double] gamma, matrix[double] updatedLambda) {
+
+  if (nrow(batchDocsWordIds) != nrow(batchDocsWordCts)) {
+    stop("batchDocsWordIds and batchDocsWordCts much match")
+  }
+  batchDocsSize = nrow(batchDocsWordIds) # total number of documents in this batch
+
+  gamma = matrix(0, rows=batchDocsSize, cols=K) # 
+  sstats = matrix(0, rows=K, cols=W) # sufficient stats i.e lambda
+ 
+  #Init the variational distribution q(beta|lambda) # get or read the Lambda
+  Lambda = get_random_gamma(K, W) #TODO init by random func 
+  #ALOK DEBUG
+  Lambda = matrix("0.96307558 1.05341124 0.91342724 0.9911178 1.09593632 1.1080743 0.90388002 0.99404929 0.83463754 0.97659028", rows=2, cols=5)
+
+  
+  [gamma, updatedLambda] = batch_variational_sufficient_stats(batchDocsWordIds, batchDocsWordCts, Lambda, W, K, corpusSize, 
+                                                   alpha, eta, tau0, kappa, updatect)
+
+  
+
+  updatect = updatect + 1
+  
+}
+
+
+
+#@NOTE: in future, all the extra arguement will be reduced as we will have struct/class in system dml
+batch_variational_sufficient_stats = function(
+  matrix[double] batchDocsWordIds, # the batchDocsXdocsId matrix
+  matrix[double] batchDocsWordCts, # thebatchDocsXwordCnts matrix
+  matrix[double] Lambda,
+  int W, # number of words in the vocab
+  int K, # number of topics
+  double corpusSize, # total number of documents
+  double alpha, # dir parameter for topic distribution per doc of true distribution. #usually  = 1.0/K 
+  double eta, # dir parameter word distribution per topic. for the  = 1.0/K  # usually 1/K
+  double tau0, # A (positive) learning parameter that downweights early iterations 
+  double kappa, # Learing rate we choose 0.7 # must be [0.5, 1) 
+  double updatect
+) return (matrix[double] gamma, matrix[double] updatedLambda) {
+
+  if (nrow(batchDocsWordIds) != nrow(batchDocsWordCts)) {
+    stop("batchDocsWordIds and batchDocsWordCts much match")
+  }
+  batchDocsSize = nrow(batchDocsWordIds) # total number of documents in this batch
+
+  gamma = matrix(0, rows=batchDocsSize, cols=K) # 
+  
+ 
+  [Elogbeta, expElogbeta] = dirichlet_expected_loglikelihood(Lambda)
+  
+
+  
+# begin variational bayes
+  
+
+  batchDocsSStats = matrix(0.0, rows=K, cols=W)
+  #init the variation distribution q(theta|gamma)
+  batchD = 1
+  gammad = get_random_gamma(batchD, K)
+  gammad = matrix("0.93880941 0.8567902", rows=1, cols=K) #ALOK debug
+  #ignore=printm("M_gammad", gammad)
+  gamma = get_random_gamma(batchDocsSize, K)
+
+  # do all the E steps in parallel par
+  for (docId in 1:batchDocsSize) {
+    #ids = wordids[d,]
+    #cts = wordcts[d,]
+    #note that we work with column vectors so we need extra tranpose. Hopefully compiler optimizer will take care of this
+    docWordIds = t(batchDocsWordIds[docId,])
+    docWordCts = t(batchDocsWordCts[docId,])
+    gammad = gamma[docId, ]
+    gammad = matrix("0.93880941 0.8567902", rows=1, cols=K) #ALOK debug
+    [docGamma, docSStatsCompact] = doc_variational_sufficient_stats(docWordIds, docWordCts, gammad, expElogbeta, alpha, K)
+                         
+    #gammad = matrix(0.0, rows=1, cols=K) #ALOK_DEBUG
+    #sstatsd = matrix(0.0, rows=K, cols=W) #ALOK_DEBUG
+    gamma[docId,] = docGamma
+    # since sstatsd is not aligned wrt the KXW matrix aligned it
+    docSStats = matrix(0.0, rows=K, cols=W) 
+    #docWordIdsSStats = mcols(docSStats, docWordIds) # only columns corresponding to the words in docId
+    #docWordIdsSStats = docWordIdsSStats + docSStatsCompact #
+    #docSStats = msetcols(docSStats, docSStatsCompact, docWordIds)
+    docSStats = msetcols(docSStats, docSStatsCompact, docWordIds)
+    batchDocsSStats = batchDocsSStats + docSStats
+    ignore = printm("M_batchDocsSStats_1", batchDocsSStats)
+  }
+
+  # M steps
+  # Maximize the resulting lower bound
+  batchDocsSStats = batchDocsSStats * expElogbeta
+  ignore = printm("M_batchDocsSStats_2", batchDocsSStats)
+
+  # rhot = [0,1]  and says how much weight we want to give to the mini batch
+  # note 
+  #  - 1) that at it is exponential in nature to the updatect which is the number of batches we process. 
+  #       so it is giving more weight to the latest batch. 
+  #  - 2) when kappa == 0, then it reduces to 1 meaning , we give 100% weight to the last batch and 0 to the previous stats and it is not likely to converge
+  #  - 3) when kappa == 1, then it reduces to simple weighted average
+  #  - 3) usually kappa is (0.5, 1) and we choose 0.7, it that case it will converge
+  rhot = (tau0  + updatect)^-kappa
+
+  # Lambda batch is the controbution to the direchlet variational hyper parameter lambda by this batch of docs
+  LambdaBatch = eta + batchDocsSStats*corpusSize/batchDocsSize
+  ignore=printm("M_LambdaBatch", LambdaBatch)
+  
+  # calculate the new weighted direchlet variational hyper parameter lambda on the older lambda and the batch lambda
+  # since 0 < rhot < 1, we can view the newLambda as the comvex combination of oldLambda and batchLambda for each batch.
+  # geometrically, we can view this as refining the convex hull of Lambda in every update. Since rhot is more closer to 0
+  # each new batch contribition is comparatively small.
+  updatedLambda = Lambda * (1-rhot) + LambdaBatch*rhot
+  ignore=printm("M_Lambda", updatedLambda)
+
+  
+  
+}
+
+
+#@description: find the topic variational param i.e gamma for the doc, which is represented by termVector and 
+#              term counts.
+#@output: the variational parameters {gamma, sstats}
+#          sstats = function(constant(expElogbeta), termCntVector, phi)
+#          in docs and others' implementation, they return {gamma, phi}              
+doc_variational_sufficient_stats = function(
+  matrix[double] termVector,
+  matrix[double] termCounts,
+  matrix[double] gammad,
+  matrix[double] expElogbeta,
+  double alpha,
+  int K # size of the topics
+) return (matrix[double] gammad, matrix[double] sstatsd) {
+    
+  # begin variational bayes
+  ids = termVector
+  cts = termCounts
+  
+  [Elogthetad, expElogthetad] = dirichlet_expected_loglikelihood(gammad)
+  #ignore = printm("M_Elogthetad", Elogthetad); ignore = printm("M_expElogthetad", expElogthetad)
+  ignore = printm("M_ids", ids)
+
+  expElogbetad = mcols(expElogbeta, ids)
+  ignore = printm("M_expElogbetad", expElogbetad )
+  phiNorm = mdot(t(expElogthetad), expElogbetad)
+  phiNorm = phiNorm + 1e-100 # to account for the zero dot product
+  ignore = printm("M_phiNorm", phiNorm)
+
+  # do the EM steps. Iterate between gamma and phi until convergence
+  meanchange = 0
+  #@TODO: do we need to pass from user? for now we will not and after discussion we will decide.
+  meanchangethresh = 1e-03 #try 1e-03
+  #@TODO: do we need to pass from user? for now we will not and after discussion we will decide.
+  e_max_it = 1 # should be 100
+
+  
+  meanchange = 1.0  
+  e_it = 1
+  while (meanchange < meanchangethresh & e_it <= e_max_it) { 
+    print ("Iteration Id = " + e_it)
+    # store the last result to calculate the mean change
+    lastgammad = gammad
+    # do the EM steps
+  
+    # BEGIN DEBUG CODE
+    # t1=t(cts)/phiNorm
+    # ignore=printm("M_t1", t1)
+    # t2=mdot(t(t1), t(expElogbetad))
+    # ignore=printm("M_t2", t2)
+    # t3=expElogthetad*t2
+    # ignore=printm("M_t3", t3)
+    # gammad = alpha + t3
+    # END DEBUG CODE
+
+    #we represent phi implicitly to save memory and time. 
+    tmp_gammad = mdot(t(t(cts)/phiNorm), t(expElogbetad))
+    gammad = alpha + expElogthetad*(tmp_gammad)
+    #ignore=printm("M gammad at it ", gammad)
+
+    [Elogthetad, expElogthetad] = dirichlet_expected_loglikelihood(gammad)
+    #ignore=printm("M_etd1", Elogthetad);ignore=printm("M_eetd1", expElogthetad)
+    phiNorm=mdot(t(expElogthetad), expElogbetad)
+    #ignore = printm("M_pn1", phiNorm)
+
+    meanchange=mean(abs(gammad-lastgammad))
+    print("meanchange="+meanchange)
+  
+
+    e_it = e_it + 1 
+  }
+  
+  #return the sufficient stats for a doc
+  gammad = gammad 
+  sstatsd = outer(t(expElogthetad), t(cts)/phiNorm, "*")
+#end of variational topic_inference
+}
+
+
+# Assumption, we assume that the vectors are represented as the columns
+#ref https://www.cs.princeton.edu/~blei/papers/BleiNgJordan2003.pdf Appendix A.1
+# 
+# @input: hyperparam
+# @output: ElogDist: E[log(RV)] where RV ~ Dir(hyperparams)
+# @output: expElogDist: exponential of ElogDist which is kind of E[RV]
+#          because of jensen's inequality exp(E[log(RV)]) <= exp(log(E(RV))) == E(RV)
+dirichlet_expected_loglikelihood = function (matrix[double] hyperparams)
+return (matrix[double] ELogRV, matrix[double] expELogRV) {
+  dig_hyperparams = digamma(hyperparams)
+  sum_hyperparams = rowSums(hyperparams)
+  dig_sum_hyperparams = digamma(sum_hyperparams)
+  ELogRV = dig_hyperparams - dig_sum_hyperparams
+  expELogRV = exp(ELogRV)
+}
+
+#@description:A convenient wrapper over library gamma random variable. Here we assume the shape and scale for this DML
+#@input: rows, cols: shape of the output
+#@output: matrix of dim(rows X cols), where each cell is the random gamma sample drawn from shape=100 and scale=1/100
+get_random_gamma = function(int rows, int cols) 
+return (matrix[double] gamma) {
+  # since we are initializing the random gamma
+  # the choice of shape and scale parameters are arbitary.
+  # also our current implementation of random gamma accepts only the integer shape
+  shape = 100 
+  scale = 1.0/100.0
+  gamma = random_gamma(shape, scale, rows, cols) # size of gamma #TODO initialize randomly
+   
+}
+
+#include "math/special/DiGamma.dml"
+#dmlpp autogenerated BEGIN including '#include "math/special/DiGamma.dml"'
+# We follow closely apache common's Gamma Distribution.
+# Here is base https://github.com/apache/commons-math/blob/master/src/main/java/org/apache/commons/math4/special/Gamma.java
+# Also called psi
+# Abramowitz, M.; Stegun, I. A., eds. (1972). "6.3 psi (Digamma) Function.". Handbook of Mathematical Functions with Formulas, Graphs, and Mathematical Tables
+/**
+* <p>Computes the digamma function of x.</p>
+*
+* <p>This is an independently written implementation of the algorithm described in
+* Jose Bernardo, Algorithm AS 103: Psi (Digamma) Function, Applied Statistics, 1976.</p>
+*
+* <p>Some of the constants have been changed to increase accuracy at the moderate expense
+* of run-time. The result should be accurate to within 10^-8 absolute tolerance for
+* x >= 10^-5 and within 10^-8 relative tolerance for x > 0.</p>
+*
+* <p>Performance for large negative values of x will be quite expensive (proportional to
+* |x|). Accuracy for negative values of x should be about 10^-8 absolute for results
+* less than 10^5 and 10^-8 relative for results larger than that.</p>
+*
+* @param x Argument.
+* @return digamma(x) to within 10-8 relative or absolute error whichever is smaller.
+* @see <a href="http://en.wikipedia.org/wiki/Digamma_function">Digamma</a>
+* @see <a href="http://www.uv.es/~bernardo/1976AppStatist.pdf">Bernardo&apos;s original article </a>
+* 
+*/
+
+
+# non parallel DiGamma function. 
+sdigamma  = function (
+        double z
+) return (double psi) {
+
+  GAMMA = 0.577215664901532860606512090082 #euler's constant
+  C_LIMIT = 49;
+  S_LIMIT = 1e-5;
+  Infp = 1.0/0.0
+  Infn = -1.0/0.0
+  NaN = 0.0/0.0
+
+  if ( (z == Infp) | (z == Infn) | (z == NaN) ) {
+    psi = z
+  } else if( 0 < z & z <= S_LIMIT) {
+    # use method 5 from Bernardo AS103
+    # accurate to O(x)
+    psi = -GAMMA - 1 / z;
+  } else if (z >= C_LIMIT) {
+    inv = 1/(z*z)
+    psi = log(z) - 0.5 / z - inv * ((1.0 / 12) + inv * (1.0 / 120 - inv / 252))
+  } else { #S_LIMIT < z < C_LIMIT
+    psi_1 = sdigamma(z + 1)
+    psi = psi_1 - 1 / z
+  }
+}
+
+# iterative non parallel DiGamma function
+sdigamma_it = function (
+        double z
+) return (double psi) {
+
+  GAMMA = 0.577215664901532860606512090082 #euler's constant
+  C_LIMIT = 49;
+  S_LIMIT = 1e-5;
+  Infp = 1.0/0.0
+  Infn = -1.0/0.0
+  NaN = 0.0/0.0
+
+  if ( (z == Infp) | (z == Infn) | (z == NaN) ) {
+    psi = z
+  } else if( 0 < z & z <= S_LIMIT) {
+    # use method 5 from Bernardo AS103
+    # accurate to O(x)
+    psi = -GAMMA - 1 / z;
+  } else if (z >= C_LIMIT) {
+    inv = 1/(z*z)
+    psi = log(z) - 0.5 / z - inv * ((1.0 / 12) + inv * (1.0 / 120 - inv / 252))
+  } else { #S_LIMIT < z < C_LIMIT plus negative numbers
+    n = ceil(C_LIMIT-z)
+    #n = C_LIMIT to simplify we can as well have it a constant
+    seq = seq(0, n-1, 1)
+    sseq = as.scalar(colSums(seq))
+    s = as.scalar(colSums(1/(seq+z)))
+    zn = n + z
+    
+    inv = 1/(zn*zn)
+    zn_psi = log(zn) - 0.5 / zn - inv * ((1.0 / 12) + inv * (1.0 / 120 - inv / 252))
+    psi = zn_psi - s
+    
+  }
+}
+
+
+#parallel DiGamma function
+#@NOTE: it future systemML will support the apply() operations on the matrix and we can implement it with it
+# this implementation uses the parallel for . Not that efficient.
+pf_digamma = function (
+        matrix[double] Z
+) return (matrix[double] Psi) {
+  r = nrow(Z)
+  c = ncol(Z)
+  Psi = matrix(0.0, rows=r, cols=c)
+  parfor(i in 1:r) {
+    parfor(j in 1:c) {
+      z = as.scalar(Z[i,j])
+      psi = sdigamma(z)
+      Psi[i,j] = psi
+    }
+  }
+}    
+# this will not work great i.e errors may be big with the negative numbers
+#assumption: The input matrix doesn't contain NaN or Inf
+
+digamma = function (
+        matrix[double] Z
+) return (matrix[double] Psi) {
+
+  GAMMA = 0.577215664901532860606512090082 #euler's constant
+  C_LIMIT = 49.0;
+  S_LIMIT = 1e-5;
+  Infp = 1.0/0.0
+  Infn = -1.0/0.0
+  NaN = 0.0/0.0
+
+  r = nrow(Z)
+  c = ncol(Z)
+
+  NaNPred = ppred(Z, NaN, "==");
+  InfpPred = ppred(Z, Infp, "==");
+  InfnPred = ppred(Z, Infn, "==");
+  GtzPred = ppred(Z, 0.0, ">=");
+  S_LimPred = ppred(Z, S_LIMIT, "<=");
+  C_LimPred = ppred(Z, C_LIMIT, ">=");
+
+  # case 1 
+  noChangePred = InfpPred + InfnPred + NaNPred
+  sumNoChangePred = sum(noChangePred)
+  if (sumNoChangePred != 0.0) {
+    stop("parallel digamma input contains Nan or Inf or -Inf")
+  }
+  
+
+  #case 2: z = (0, 1e-5]
+  smZPred1 = GtzPred*S_LimPred
+  sm_Psi = matrix(0.0, rows=r, cols=c)
+  if (sum(smZPred1) >= 1) {
+    smZPred = replace(target=smZPred1, pattern=0, replacement=NaN)
+    sm_Z = Z*smZPred
+    sm_Psi = -GAMMA - 1 / sm_Z;
+  }
+  #ignore = printm("M_sm_Psi", sm_Psi) # DEBUG
+
+  #case 3: z = [49, inf)
+  lgZPred = C_LimPred
+  lg_Psi = matrix(0.0, rows=r, cols=c)
+  if (sum(lgZPred) >= 1) {
+    lg_Z = Z*lgZPred
+    lg_inv = 1/(lg_Z*lg_Z)
+    lg_Psi = log(lg_Z) - 0.5 / lg_Z - lg_inv * ((1.0 / 12) + lg_inv * (1.0 / 120 - lg_inv / 252))
+  }
+  #ignore = printm("M_lg_Psi", lg_Psi) # DEBUG
+
+  #case 4: z = (1e-5, 49) U (0, -inf) # note we don't take into account the negative numbers
+  slZPred1 = (1-S_LimPred)*(1-C_LimPred)
+  sl_Psi = matrix(0.0, rows=r, cols=c)
+  if (sum(slZPred1) >= 1) {
+    slZPred = replace(target=slZPred1, pattern=0, replacement=NaN)
+    sl_Z = Z*slZPred
+   
+    # transform the problem in 1D
+    sl_Z1D = matrix(sl_Z, rows=r*c, cols=1)
+   
+    # calculate the corresponding n sum
+    maxN = C_LIMIT
+    G = matrix(0, rows=nrow(sl_Z1D), cols=maxN)
+    parfor(i in 1:nrow(sl_Z1D)) {
+      s = seq(0, maxN-1, 1)
+      ts = t(s)
+      ts_sum = as.scalar(rowSums(ts))
+      #print("pgamma i = "+i+";ts_sum="+ts_sum)
+      #write(ts, "tmp_s"+i+".mtx")
+      G[i,] = 1/(ts + sl_Z1D[i,1])
+    }
+    S = rowSums(G)
+    
+    # new z
+    sl_Z1D = sl_Z1D + maxN
+    sl_inv = 1/(sl_Z1D*sl_Z1D)
+    
+    ZnPsi = log(sl_Z1D) - 0.5 / sl_Z1D - sl_inv * ((1.0 / 12) + sl_inv * (1.0 / 120 - sl_inv / 252))
+    
+    sl_Psi_1D = ZnPsi - S
+    
+    # convert back to org dims
+    sl_Psi = matrix(sl_Psi_1D, rows=r, cols=c)
+  }
+  #ignore = printm("M_sl_Psi", sl_Psi) # DEBUG
+  
+  # aggregate the sub results
+  c_sm_Psi = replace(target=sm_Psi, pattern=NaN, replacement=0.0)
+  c_lg_Psi = replace(target=lg_Psi, pattern=NaN, replacement=0.0)
+  c_sl_Psi = replace(target=sl_Psi, pattern=NaN, replacement=0.0)
+  
+  Psi = c_sm_Psi + c_lg_Psi + c_sl_Psi
+  
+}
+
+digamma_ok = function (
+        matrix[double] Z
+) return (matrix[double] Psi) {
+
+  GAMMA = 0.577215664901532860606512090082 #euler's constant
+  C_LIMIT = 49.0;
+  S_LIMIT = 1e-5;
+  Infp = 1.0/0.0
+  Infn = -1.0/0.0
+  NaN = 0.0/0.0
+
+  r = nrow(Z)
+  c = ncol(Z)
+
+  NaNPred = ppred(Z, NaN, "==");
+  InfpPred = ppred(Z, Infp, "==");
+  InfnPred = ppred(Z, Infn, "==");
+  GtzPred = ppred(Z, 0.0, ">=");
+  S_LimPred = ppred(Z, S_LIMIT, "<=");
+  C_LimPred = ppred(Z, C_LIMIT, ">=");
+
+  # case 1 
+  noChangePred = InfpPred + InfnPred + NaNPred
+  sumNoChangePred = sum(noChangePred)
+  if (sumNoChangePred != 0.0) {
+    stop("parallel digamma input contains Nan or Inf or -Inf")
+  }
+  
+
+  #case 2: z = (0, 1e-5]
+  smZPred1 = GtzPred*S_LimPred
+  sm_Psi = matrix(0.0, rows=r, cols=c)
+  if (sum(smZPred1) >= 1) {
+    smZPred = replace(target=smZPred1, pattern=0, replacement=NaN)
+    sm_Z = Z*smZPred
+    sm_Psi = -GAMMA - 1 / sm_Z;
+  }
+  #ignore = printm("M_sm_Psi", sm_Psi) # DEBUG
+
+  #case 3: z = [49, inf)
+  lgZPred = C_LimPred
+  lg_Psi = matrix(0.0, rows=r, cols=c)
+  if (sum(lgZPred) >= 1) {
+    lg_Z = Z*lgZPred
+    lg_inv = 1/(lg_Z*lg_Z)
+    lg_Psi = log(lg_Z) - 0.5 / lg_Z - lg_inv * ((1.0 / 12) + lg_inv * (1.0 / 120 - lg_inv / 252))
+  }
+  #ignore = printm("M_lg_Psi", lg_Psi) # DEBUG
+
+  #case 4: z = (1e-5, 49) U (0, -inf) # note we don't take into account the negative numbers
+  slZPred1 = (1-S_LimPred)*(1-C_LimPred)
+  sl_Psi = matrix(0.0, rows=r, cols=c)
+  if (sum(slZPred1) >= 1) {
+    slZPred = replace(target=slZPred1, pattern=0, replacement=NaN)
+    sl_Z = Z*slZPred
+   
+    # transform the problem in 1D
+    sl_Z1D = matrix(sl_Z, rows=r*c, cols=1)
+   
+    # calculate the corresponding n sum
+    maxN = C_LIMIT
+    G = matrix(0, rows=nrow(sl_Z1D), cols=maxN)
+    parfor(i in 1:nrow(sl_Z1D)) {
+      s = seq(0, maxN-1, 1)
+      ts = t(s)
+      ts_sum = as.scalar(rowSums(ts))
+      #print("pgamma i = "+i+";ts_sum="+ts_sum)
+      #write(ts, "tmp_s"+i+".mtx")
+      G[i,] = 1/(ts + sl_Z1D[i,1])
+    }
+    S = rowSums(G)
+    
+    # new z
+    sl_Z1D = sl_Z1D + maxN
+    sl_inv = 1/(sl_Z1D*sl_Z1D)
+    
+    ZnPsi = log(sl_Z1D) - 0.5 / sl_Z1D - sl_inv * ((1.0 / 12) + sl_inv * (1.0 / 120 - sl_inv / 252))
+    
+    sl_Psi_1D = ZnPsi - S
+    
+    # convert back to org dims
+    sl_Psi = matrix(sl_Psi_1D, rows=r, cols=c)
+  }
+  #ignore = printm("M_sl_Psi", sl_Psi) # DEBUG
+  
+  # aggregate the sub results
+  c_sm_Psi = replace(target=sm_Psi, pattern=NaN, replacement=0.0)
+  c_lg_Psi = replace(target=lg_Psi, pattern=NaN, replacement=0.0)
+  c_sl_Psi = replace(target=sl_Psi, pattern=NaN, replacement=0.0)
+  
+  Psi = c_sm_Psi + c_lg_Psi + c_sl_Psi
+  
+}
+
+#dmlpp autogenerated END including '#include "math/special/DiGamma.dml"'
+#include "math/random/GammaDistribution.dml"
+#dmlpp autogenerated BEGIN including '#include "math/random/GammaDistribution.dml"'
+# see the http://arxiv.org/pdf/1304.3800.pdf 
+#		Extremely effiecient method of generating gamma variable.
+# this works with the integer shapes
+# When shape parameter is integer then gamma reduces to erlang distribution. whose samples
+# can be easily calculated as the shape number of iid poisson's process which can be calculated
+# using inverse CDF method
+random_gamma = function (
+	int shape, double scale, int rows, int cols
+) return (matrix[double] G) {
+	
+	U = rand(rows=rows*cols, cols=shape) # uniform RV i.e gen ui ~ U[0,1] ; i:1->rows*cols*alpha
+    Op = matrix(1.0, rows=shape, cols=1) # a operator vector used for doing row-wise sum
+ 
+ 	#since rv ~ Gamma(k, 1/lambda) == rv ~ Erlang(k, lambda) 
+    e_k = shape # erlang's k == gamma's alpha
+    e_lambda = 1/scale # erlang's lambda == gamme's 1/scale
+    E = -(log(U) %*% Op)/e_lambda # Erlang RV see the http://arxiv.org/pdf/1304.3800.pdf 
+    
+    Eo = matrix(E, rows=rows, cols=cols) # reshape as per output
+    
+    G = Eo # since rv ~ Gamma(k, 1/lambda) == rv ~ Erlang(k, lambda) 
+}
+#dmlpp autogenerated END including '#include "math/random/GammaDistribution.dml"'
+#include "math/matrix/MatrixOps.dml"
+#dmlpp autogenerated BEGIN including '#include "math/matrix/MatrixOps.dml"'
+
+#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
+# multiply to X*Is
+# @description: It extracts the specified columns from the matrix
+# @input X: matrix
+# @input cols: mx1 matrix of the column index you would like to extract
+# @output Y: is the output matrix contains the extract columns from X
+mcols = function(
+  matrix[double] X,
+  matrix[double] cols
+) return (matrix[double] Y) {
+   ry = nrow(X)
+   cy = nrow(cols)
+   Y = matrix(0.0, rows=ry, cols=cy)
+   parfor(r in 1:cy) {
+     col2ext = as.scalar(cols[r,1])
+     Y[,r] = X[,col2ext]
+   }
+}
+
+#@TODO implement it using the multiplication
+# @description: It extracts the specified rows from the matrix
+# @input X: matrix
+# @input rows: mx1 matrix of the column index you would like to extract
+# @output Y: is the output matrix contains the extract columns from X
+mrows = function(
+  matrix[double] X,
+  matrix[double] rows
+) return (matrix[double] Y) {
+   ry = nrow(rows)
+   cy = ncol(X)
+   Y = matrix(0.0, rows=ry, cols=cy)
+   parfor(r in 1:ry) {
+     row2ext = as.scalar(rows[r,1])
+     Y[r,] = X[row2ext,]
+   }
+}
+
+#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
+# multiply to X*Is
+# @description: It sets the specified columns from the matrix B to the matrix A
+# @input A: matrix whose columns need to be set
+# @input B: the matrix from which the columns will be set in A
+# @input cols: mx1 matrix of the column index you would like to extract from B
+# @output Y: is the output matrix contains the columns from B and the remaining columns from A
+msetcols = function(
+  matrix[double] A,
+  matrix[double] B,
+  matrix[double] cols
+) return (matrix[double] Y) {
+   ry = nrow(A)
+   cy = nrow(cols)
+   if (nrow(cols) != ncol(B)) {
+      stop("msetrows: rows and B doesn't align")
+   }
+   i = 1
+   for(r in 1:cy) {
+     col2ext = as.scalar(cols[r,1])
+     A[,col2ext] = B[,i]
+     i = i + 1
+   }
+   Y = A
+}
+
+#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
+# multiply to X*Is
+# @description: It sets the specified rows from matrix B to matrix A
+# @input A: matrix whose columns need to be set
+# @input B: the matrix from which the columns will be set in A
+# @input rows: mx1 matrix of the column index you would like to extract from B
+# @output Y: is the output matrix contains the columns from B and the remaining columns from A
+msetrows = function(
+  matrix[double] A,
+  matrix[double] B,
+  matrix[double] rows
+) return (matrix[double] Y) {
+   ry = nrow(A)
+   cy = nrow(rows)
+   if (nrow(rows) != nrow(B)) {
+      stop("msetrows: rows and B doesn't align")
+   }
+   i = 1
+   for(r in 1:cy) {
+     row2ext = as.scalar(rows[r,1])
+     A[row2ext,] = B[i,]
+     i = i + 1
+   }
+   Y = A
+}
+
+# @description: It compares if two matrices are cellwise equals. It's a convenient routine
+# @input A, B: matrices to be compared
+# @output isequal: 1 if A==B else 0
+mequals = function(
+  matrix[double] A,
+  matrix[double] B
+) return (int isequal) {
+  if (nrow(A) != nrow(B) | ncol(A) != ncol(B)) {
+    isequal = 0
+  } else {
+    notequal = sum(ppred(A, B, "!="))
+    if (notequal > 0) {
+      isequal = 0
+    } else {
+      isequal =1
+    }
+  }
+}
+
+#@description: dot product of two matrix
+#  We assume that columns represent the vectors
+#@input A: the first vector or the list of vectors represented as cols of matrix .dim==(mxn)
+#@input B: the second vector or the list of vectors represented as the cols of matrix. dim == (mxr)
+#@output D: the dot product tranpose(A) %*% B. dim = (nxr)
+mdot = function(
+ matrix[double] A,
+ matrix[double] B
+) return (matrix[double] D) {
+   ra = nrow(A); ca = ncol(A)
+   rb = nrow(B); cb = ncol(B)
+
+   if (ra != rb) {
+     stop("FATAL: mdot => matrix A(" + ra + "x" + ca + ") and B(" + rb + "x" + cb + ") doesn't align")
+   }
+
+   D = t(A) %*% B
+}
+
+#include "io/io.dml"
+#dmlpp autogenerated BEGIN including '#include "io/io.dml"'
+
+#print the matrixs
+printm_raw = function(matrix[double] M) return (matrix[double] M) {
+  if (nrow(M)*ncol(M) >= 100*100) {
+     stop("print_raw => Matrix is too big to print in stdout! Aborting ... s")
+  }
+  for (i in 1:nrow(M)) {
+    for (j in 1:ncol(M)) {
+       e = as.scalar(M[i,j])
+       print(" " + i + " " + j + " " + e)
+    }
+  }
+  M = M
+}
+
+printm = function(string name, matrix[double] M) return (matrix[double] M) {
+  print("printing matrix = " + name)
+  ignore = printm_raw(M)
+  print("done printing matrix = " + name)
+  M = M
+}
+#dmlpp autogenerated END including '#include "io/io.dml"'
+#dmlpp autogenerated END including '#include "math/matrix/MatrixOps.dml"'
+#include "math/functions/*.dml"
+#dmlpp autogenerated BEGIN including '#include "math/functions/*.dml"'
+
+# power for the positve base for scalar
+pows = function(
+	double rplus, double exponent
+) return (double ans) {
+  ans = exp(exponent*log(rplus))
+}
+
+#dmlpp autogenerated END including '#include "math/functions/*.dml"'
+

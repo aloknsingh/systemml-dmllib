@@ -1,0 +1,11 @@
+it_max = 10
+it = 1
+ignore=print("")
+mc=1
+mct=10
+while (mc < mct & it <= it_max) {
+ print("it=" + it + ";mc="+mc)
+ it = it + 1
+ mc = mc + 2.5
+}
+ignore=print("")

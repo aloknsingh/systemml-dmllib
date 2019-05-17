@@ -1,0 +1,13 @@
+sstats = matrix(0.0, rows=2, cols=5)
+
+e=matrix("0.38122031 0.32534496", rows=1, cols=2)
+
+cn=matrix("46.24275961 16.71475093 17.62756518 28.15829347 30.49961812", rows=1, cols=5)
+eocn = outer(t(e), cn, "*")
+ignore=printm("M_eocn", eocn)
+
+sstats[:
+
+#include "io/io.dml"
+
+

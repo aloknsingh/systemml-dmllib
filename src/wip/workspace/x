@@ -1,0 +1,9 @@
+ fileX = ""
+  fileO = "xo.mtx"
+  fileF = "f.mtx"
+  factor = 0
+  X = read($fileX)
+  O = X*$factor
+  F = $factor
+  write(O, fileO)
+  write(F, fileF)

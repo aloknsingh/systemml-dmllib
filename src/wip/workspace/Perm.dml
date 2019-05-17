@@ -1,0 +1,61 @@
+printm_raw = function(matrix[double] M) return (matrix[double] M) {
+  if (nrow(M)*ncol(M) >= 100*100) {
+     stop("print_raw => Matrix is too big to print in stdout! Aborting ... s")
+  }
+  for (i in 1:nrow(M)) {
+    for (j in 1:ncol(M)) {
+       e = as.scalar(M[i,j])
+       print(" " + i + " " + j + " " + e)
+    }
+  }
+  M = M
+}
+
+printm = function(string name, matrix[double] M) return (matrix[double] M) {
+  print("printing matrix = " + name)
+  ignore = printm_raw(M)
+  print("done printing matrix = " + name)
+  M = M
+}
+
+rbind = function(
+  matrix[double] X1,
+  matrix[double] X2
+) return (matrix[double] Y) {
+  Y = t(cbind(t(X1), t(X2))) 
+}
+reorder_matrix = function(
+  matrix[double] X,
+  matrix[double] B,
+  matrix[double] S
+) return (matrix[double] Y) {
+  
+  num_empty_B = nrow(X) - nrow(B)
+  if (num_empty_B < 0) {
+    stop("B more than matrix X")
+  }
+  # +1 since extra column is for dummy r,c
+  zero_B_n = matrix(0, rows=num_empty_B, cols=1) 
+  zero_m_n = matrix(0, rows=num_empty_B+1, cols=1) 
+ 
+  B_x = rbind(B, zero_B_n)
+  dummy=printm("B_x_m", B_x)
+  S_x = rbind(S, zero_m_n) # S is now full rank as X
+  # since the table won't accept zeros as index we hack it.
+  S_xo = replace(target=S_x, pattern=0, replacement=nrow(S_x))
+  dummy=printm("S_xo2_m", S_xo)
+
+  P=table(seq(1, nrow(S_xo)), S_xo, nrow(X), nrow(X))
+  Y = P
+  Y = t(P) %*% B_x
+}
+X = matrix("10 20 30 40 50", rows=5, cols=1)
+B = matrix("0.3 0.5", rows=2, cols=1)
+S = matrix("4 3", rows=2, cols=1)
+Y = reorder_matrix(X, B, S)
+dummy=printm("Y_s", Y)
+
+# note X is the input matrix we have to account for extra beta0 for the intercept
+# S is the Selected vector
+# B is the beta vector
+

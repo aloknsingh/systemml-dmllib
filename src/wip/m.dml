@@ -1,0 +1,3 @@
+foo = function(double dummy) return (matrix[double] X, matrix[double] Y) { X = matrix(0.0, rows=2, cols=2); Y = matrix(0.0, rows=2, cols=2) }
+
+(ignore,d) = foo(1.8)

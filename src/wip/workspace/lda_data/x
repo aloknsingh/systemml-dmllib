@@ -1,0 +1,17 @@
+/*
+x = 3
+c1 = 1
+if (c1 != 0) { y = x} else {stop("exit")}
+#y = x 
+*/
+
+func=function(int c1) return(int y) {
+ if (c1==0) { 
+  y = 10
+ } else { 
+  stop("exit")
+ }
+}
+
+y=func(10)
+

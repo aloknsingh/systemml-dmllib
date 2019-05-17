@@ -1,0 +1,5 @@
+debug=function() return(int level) { level = ifdef($debug, 0) }
+
+debug=debug()
+
+print("Level=="+debug) 

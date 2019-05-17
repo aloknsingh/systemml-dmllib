@@ -1,0 +1,5 @@
+#ignore=read("workspace/lda_data/lda_ids.mtx")
+#ignore=read("ldaids.mtx")
+ids=read("term_ids.mtx")
+cts=read("term_cnts.mtx")
+write(ids,"ids")

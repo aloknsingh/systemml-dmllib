@@ -1,0 +1,37 @@
+#print the matrixs
+printm_raw = function(matrix[double] M) return (matrix[double] M) {
+  if (nrow(M)*ncol(M) >= 100*100) {
+     stop("print_raw => Matrix is too big to print in stdout! Aborting ... s")
+  }
+  for (i in 1:nrow(M)) {
+    for (j in 1:ncol(M)) {
+       e = as.scalar(M[i,j])
+       print(" " + i + " " + j + " " + e)
+    }
+  }
+  M = M
+}
+
+printm = function(string name, matrix[double] M) return (matrix[double] M) {
+  print("printing matrix = " + name)
+  ignore = printm_raw(M)
+  print("done printing matrix = " + name)
+  M = M
+}
+
+A = matrix("1 2 3 4", rows=4, cols=1)
+#B = matrix("1 2 3 4", rows=4, cols=1)
+#B = matrix("4 3 2 1", rows=4, cols=1)
+#B = matrix("1 1 1 1", rows=4, cols=1)
+B = matrix("1 1 1 1", rows=3, cols=1)
+C = table(A, B)
+
+dummy =printm("C_m", C)
+
+A = matrix("0.0", rows=1, cols=1)
+#A = replace(target=A, pattern=0, replacement=0/0)
+A = A + 1
+B = matrix("1.0", rows=1, cols=1)
+C = table(A, B)
+
+dummy=printm("C_m", C)

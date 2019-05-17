@@ -1,0 +1,80 @@
+
+tom = function(int v) return (matrix[double] M) { 
+  M = matrix(v, rows=2, cols=3) 
+}
+
+tom_recur_l3 = function(int v) return (matrix[double] M) {
+  M = tom(v)
+  M = M - 1
+}
+tom_recur_l2 = function(int v) return (matrix[double] M) {
+  M = tom_recur_l3(v)
+  M = M + 1
+}
+tom_recur = function(int v) return (matrix[double] M) { 
+  M = tom_recur_l2(v)
+  M = M + 0
+}
+
+ms = matrix(0, rows=2, cols=3*10)
+parfor (v in 1:10, check=0) {
+  print (v)
+  mv = tom(v)
+  mv = tom_recur(v)
+  ignore=printm("M_mv", mv)
+  st = "hello"
+  ms[,(v-1)*3+1:v*3] = mv
+}
+
+ignore=printm("M_ms", ms)
+
+/*
+rcm = matrix("1 2 3 4 5 6 7 8 9 10 11 12", rows=3, cols=4)
+ignore=printm("M_rcm", rcm)
+rcm2=matrix(rcm, rows=6, cols=2, byrow=TRUE)
+ignore=printm("M_rcm2", rcm2)
+rcm3=matrix(rcm, rows=6, cols=2, byrow=FALSE)
+ignore=printm("M_rcm3", rcm3)
+
+cols=matrix("1 4 7 10 13 16 19 22 25 28", rows=10, cols=1)
+#sms=mcols1(ms, cols)
+#ignore=printm("M_sms", sms)
+*/
+
+
+mcols1 = function(
+  matrix[double] X,
+  matrix[double] cols
+) return (matrix[double] Y) {
+   M = cols
+   #P = table(seq (1, nrow(M), 1), M, nrow(M), 10)
+   #P= table(seq(1, nrow(cols)), cols)
+   P= table(seq(1, nrow(cols)), cols, nrow(X), ncol(X))
+   ignore=printm("M_P", P)
+   Y = X
+   #Y = t(P) %*% X
+   Y = X %*% t(P)
+}
+
+
+
+printm_raw = function(matrix[double] M) return (matrix[double] M) {
+  if (nrow(M)*ncol(M) >= 100*100) {
+     stop("print_raw => Matrix is too big to print in stdout! Aborting ... s")
+  }
+  for (i in 1:nrow(M)) {
+    for (j in 1:ncol(M)) {
+       e = as.scalar(M[i,j])
+       print(" " + i + " " + j + " " + e)
+    }
+  }
+  M = M
+}
+
+printm = function(string name, matrix[double] M) return (matrix[double] M) {
+  print("printing matrix = " + name)
+  ignore = printm_raw(M)
+  print("done printing matrix = " + name)
+  M = M
+}
+

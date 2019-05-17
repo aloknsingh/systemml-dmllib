@@ -1,0 +1,16 @@
+square = function (int a) return (int b) { 
+ b = a*a
+ print ("func2")
+}
+
+square = function (double a) return (double b) { 
+ b = a*a
+ print ("func1")
+}
+
+#work
+sq_in_a = 1.9/2.9
+foo = square(sq_in_a)
+
+print(foo)
+

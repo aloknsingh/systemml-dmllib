@@ -1,0 +1,507 @@
+ignore = test_mrows()
+#ignore = test_mcols()
+#ignore = test_sample()
+#ignore = test_msetcols()
+#ignore = test_maligncols()
+#ignore = test_sample()
+
+test_sample = function() return() 
+{
+  smp=sample(10, 20, TRUE)
+  smp=sample(10, 2, FALSE)
+  print("smp "+nrow(smp))
+  print("smp "+ncol(smp))
+  c=as.scalar(smp[2,1])
+  print("c="+c)
+  ignore=printm("M_smp", smp)
+  #ignore = test_msetcols()
+  #ignore = test_msetrows()
+}
+
+test_mrows = function() return() 
+{
+  print("running test_mrows")
+  M=matrix("1 2 3 4 5 6 7  8 9 10", rows=5, cols=2)
+  
+  #case 1
+  C=matrix("2 4", rows=2, cols=1)
+  N_exp = matrix("3 4 7 8", rows=2, cols=2)
+  ignore=test_mrows_impl(M, C, N_exp)
+  print("____________________________")
+  
+  #case 2
+  C=matrix("4", rows=1, cols=1)
+  N_exp = matrix("7 8", rows=1, cols=2)
+  ignore=test_mrows_impl(M, C, N_exp)
+  print("____________________________")
+
+  #case 3
+  C=matrix("2 4 5", rows=3, cols=1)
+  N_exp = matrix("3 4 7 8 9 10", rows=3, cols=2)
+  ignore=test_mrows_impl(M, C, N_exp)
+  print("____________________________")
+
+  #case 4
+  C=matrix("1 2 3 4 5", rows=5, cols=1)
+  N_exp = matrix("1 2 3 4 5 6 7  8 9 10", rows=5, cols=2)
+  ignore=test_mrows_impl(M, C, N_exp)
+  print("____________________________")
+
+  print("============================") 
+}
+
+test_mrows_impl = function(
+  matrix[double] M,
+  matrix[double] C,
+  matrix[double] N_exp
+) return () {
+  print("running test_mrows")
+  ignore=printm("M_M", M)
+  # mcols test
+  ignore=printm("M_C", C)
+
+  N = mrows(M, C)
+  ignore=printm("M_N", N)
+  
+  ignore=printm("M_N_exp", N_exp)
+  isequal = mequals(N, N_exp)
+  if (isequal) {
+    print("mrows passed")
+  } else {
+    stop("mrows failed")
+  }
+}
+
+
+# @description: It extracts the specified rows from the matrix
+# @input X: matrix
+# @input rows: mx1 matrix of the column index you would like to extract
+# @output Y: is the output matrix contains the extracted rows from X
+mrows = function(
+  matrix[double] X,
+  matrix[double] rows
+) return (matrix[double] Y) {
+   P= table(seq(1, nrow(rows)), rows, nrow(rows), nrow(X))
+   Y = P %*% X
+}
+
+
+maligncols = function(
+  matrix[double] X,
+  matrix[double] colsOrder,
+  int maxCols,
+  string by
+) return (matrix[double] Y) {
+   if (nrow(colsOrder) != ncol(X)) {
+      stop("malignrows: cols and B doesn't align")
+   }
+   P=table(seq(1, nrow(colsOrder)), colsOrder, nrow(colsOrder), maxCols)
+   #ignore=printm("M_P", P)
+   Y = X %*% P
+
+}
+
+test_maligncols = function() return () {
+  print("running test_maligncols")
+  # case 1
+  M=matrix("20 30 40 60", rows=2, cols=2)
+  C=matrix("2 4", rows=2, cols=1)
+  SM_exp = matrix("0 20 0 30 0 0 40 0 60 0", rows=2, cols=5)
+  maxCols = 5
+  ignore=test_maligncols_impl(M, C, maxCols, SM_exp)
+
+  # case 2
+  M=matrix("20 30 100 40 60 120", rows=2, cols=3)
+  C=matrix("2 4 5", rows=3, cols=1)
+  SM_exp = matrix("0 20 0 30 100 0 40 0 60 120", rows=2, cols=5)
+  maxCols = 5
+  ignore=test_maligncols_impl(M, C, maxCols, SM_exp)
+
+  print("=============================")
+}
+
+test_maligncols_impl = function(
+  matrix[double] M,
+  matrix[double] C,
+  int maxCols,
+  matrix[double] SM_exp
+) return () 
+{
+  print("running test_maligncols_impl")
+  ignore=printm("M_M", M)
+  # mcols test
+  ignore=printm("M_C", C)
+
+  SM = maligncols(M, C, maxCols, "cols")
+  ignore=printm("M_MN", SM)
+
+  ignore=printm("M_SM_exp", SM_exp)
+
+  isequal = mequals(SM, SM_exp)
+  if (isequal) {
+    print("maligncols passed")
+  } else {
+    stop("maligncols failed")
+  }
+  print("____________________________")
+}
+
+
+mcols1 = function(
+  matrix[double] X,
+  matrix[double] cols
+) return (matrix[double] Y) {
+   P= table(seq(1, nrow(cols)), cols, nrow(cols), ncol(X))
+   ignore=printm("M_P", P)
+   Y = X %*% t(P)
+}
+msetcols1 = function(
+  matrix[double] A,
+  matrix[double] B,
+  matrix[double] cols
+) return (matrix[double] Y) {
+   ry = nrow(A)
+   cy = nrow(cols)
+   if (nrow(cols) != ncol(B)) {
+      stop("msetrows: rows and B doesn't align")
+   }
+   Pa=table(seq(1, nrow(cols)), cols, nrow(A), ncol(A))
+   Pa=table(seq(1, nrow(cols)), 1, nrow(A), ncol(A))
+   Pa=table(seq(1, nrow(cols)), 1, 3, 5, 5)
+   ignore=printm("M_Pa", Pa)
+   P=table(seq(1, nrow(cols)), cols, nrow(cols), ncol(A))
+   ignore=printm("M_P", P)
+   #aligned_B = t(P) %*% B
+   aligned_B = t(B) %*% P
+   aligned_B = B %*% P
+   ignore=printm("M_aligned_B", aligned_B)
+   aligned_A = A %*% t(P)
+   ignore=printm("M_aligned_A", aligned_A)
+   i = 1
+   for(r in 1:cy) {
+     col2ext = as.scalar(cols[r,1])
+     A[,col2ext] = B[,i]
+     i = i + 1
+   }
+   Y = A
+}
+
+test_msetcols = function() return () {
+  print("running test_mcols")
+  M=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  ignore=printm("M_M", M)
+  N=matrix("20 30 40 60", rows=2, cols=2)
+  N=matrix("20 30 40 60 100 120", rows=2, cols=3)
+  ignore=printm("M_N", N)
+  # mcols test
+  C=matrix("2 4", rows=2, cols=1)
+  C=matrix("2 4 5", rows=3, cols=1)
+  ignore=printm("M_C", C)
+
+  MN = msetcols1(M, N, C)
+  ignore=printm("M_MN", MN)
+
+  MN_exp = matrix("1 20 3 30 5 6 40  8 60 10", rows=2, cols=5)
+  ignore=printm("M_MN_exp", MN_exp)
+
+  isequal = mequals(MN, MN_exp)
+  if (isequal) {
+    print("msetcols passed")
+  } else {
+    stop("msetcols failed")
+  }
+  print("____________________________")
+}
+
+test_msetrows = function() return () {
+  print("running test_msetrows")
+  M=matrix("1 2 3 4 5 6 7  8 9 10", rows=2, cols=5)
+  N=matrix("20 30 40 60 100", rows=1, cols=5)
+  # mcols test
+  C=matrix("1", rows=1, cols=1)
+
+  MN = msetrows(M, N, C)
+  ignore=printm("M_MN", MN)
+
+  MN_exp = matrix("20 30 40 60 100 6 7 8 9 10", rows=2, cols=5)
+  ignore=printm("M_MN_exp", MN_exp)
+
+  isequal = mequals(MN, MN_exp)
+  if (isequal) {
+    print("msetcols passed")
+  } else {
+    stop("msetcols failed")
+  }
+  print("____________________________")
+}
+#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
+# multiply to X*Is
+# @description: It sets the specified columns from the matrix B to the matrix A
+# @input A: matrix whose columns need to be set
+# @input B: the matrix from which the columns will be set in A
+# @input cols: mx1 matrix of the column index you would like to extract from B
+# @output Y: is the output matrix contains the columns from B and the remaining columns from A
+msetcols = function(
+  matrix[double] A,
+  matrix[double] B,
+  matrix[double] cols
+) return (matrix[double] Y) {
+   ry = nrow(A)
+   cy = nrow(cols)
+   if (nrow(cols) != ncol(B)) {
+      stop("msetrows: rows and B doesn't align")
+   }
+   i = 1
+   for(r in 1:cy) {
+     col2ext = as.scalar(cols[r,1])
+     A[,col2ext] = B[,i]
+     i = i + 1
+   }
+   Y = A
+}
+
+#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
+# multiply to X*Is
+# @description: It sets the specified rows from matrix B to matrix A
+# @input A: matrix whose columns need to be set
+# @input B: the matrix from which the columns will be set in A
+# @input rows: mx1 matrix of the column index you would like to extract from B
+# @output Y: is the output matrix contains the columns from B and the remaining columns from A
+msetrows = function(
+  matrix[double] A,
+  matrix[double] B,
+  matrix[double] rows
+) return (matrix[double] Y) {
+   ry = nrow(A)
+   cy = nrow(rows)
+   if (nrow(rows) != nrow(B)) {
+      stop("msetrows: rows and B doesn't align")
+   }
+   i = 1
+   for(r in 1:cy) {
+     row2ext = as.scalar(rows[r,1])
+     A[row2ext,] = B[i,]
+     i = i + 1
+   }
+   Y = A
+}
+
+#@description: Convert integer encoding to one-hot encoding. 
+#@input icols: nx1 matrix of integers which need to be converted to one hot
+#@output onehot: one hot encoded output. each integer becomes one col vector
+# monehot = function(
+#   matrix[double] icols,
+#   int r,
+#   int c
+# ) return (matrix [double] onehot) {
+#    rows = seq(1, r, 1)
+#    table(rows, icols)
+# }
+
+#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
+# multiply to X*Is
+# @description: It extracts the specified columns from the matrix
+# @input A: matrix whose columns need to be set
+# @input B: the matrix from which the columns will be set in A
+# @input cols: mx1 matrix of the column index you would like to extract from B
+# @output Y: is the output matrix contains the columns from B and the remaining columns from A
+mcols0 = function(
+  matrix[double] X,
+  matrix[double] cols
+) return (matrix[double] Y) {
+   ry = nrow(X)
+   cy = nrow(cols)
+   Y = matrix(0.0, rows=ry, cols=cy)
+   parfor(r in 1:cy) {
+     col2ext = as.scalar(cols[r,1])
+     Y[,r] = X[,col2ext]
+   }
+}
+
+mcols2 = function(
+  matrix[double] X,
+  matrix[double] cols
+) return (matrix[double] Y) {
+   ry = nrow(X)
+   cy = nrow(cols)
+   ignore=printm("M_diag(cols)", diag(cols))
+   ignore=printm("M_removeEmpty(diag(cols))", removeEmpty(target=diag(cols), margin="rows"))
+   Y = removeEmpty(target=diag(cols), margin="rows") %*% X
+}
+
+# @description: It extracts the specified rows from the matrix
+# @input X: matrix
+# @input rows: mx1 matrix of the column index you would like to extract
+# @output Y: is the output matrix contains the extract columns from X
+msetrows2 = function(
+  matrix[double] X,
+  matrix[double] rows
+) return (matrix[double] Y) {
+   ry = nrow(rows)
+   cy = ncol(X)
+   Y = matrix(0.0, rows=ry, cols=cy)
+   parfor(r in 1:ry) {
+     row2ext = as.scalar(rows[r,1])
+     Y[r,] = X[row2ext,]
+   }
+}
+
+
+
+
+#include "math/matrix/MatrixOps.dml"
+#dmlpp autogenerated BEGIN including '#include "math/matrix/MatrixOps.dml"'
+
+#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
+# multiply to X*Is
+# @description: It extracts the specified columns from the matrix
+# @input X: matrix
+# @input cols: mx1 matrix of the column index you would like to extract
+# @output Y: is the output matrix contains the extract columns from X
+mcols = function(
+  matrix[double] X,
+  matrix[double] cols
+) return (matrix[double] Y) {
+   ry = nrow(X)
+   cy = nrow(cols)
+   Y = matrix(0.0, rows=ry, cols=cy)
+   parfor(r in 1:cy) {
+     col2ext = as.scalar(cols[r,1])
+     Y[,r] = X[,col2ext]
+   }
+}
+
+#@TODO implement it using the multiplication
+# @description: It extracts the specified rows from the matrix
+# @input X: matrix
+# @input rows: mx1 matrix of the column index you would like to extract
+# @output Y: is the output matrix contains the extract columns from X
+mrows = function(
+  matrix[double] X,
+  matrix[double] rows
+) return (matrix[double] Y) {
+   ry = nrow(rows)
+   cy = ncol(X)
+   Y = matrix(0.0, rows=ry, cols=cy)
+   parfor(r in 1:ry) {
+     row2ext = as.scalar(rows[r,1])
+     Y[r,] = X[row2ext,]
+   }
+}
+
+#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
+# multiply to X*Is
+# @description: It sets the specified columns from the matrix B to the matrix A
+# @input A: matrix whose columns need to be set
+# @input B: the matrix from which the columns will be set in A
+# @input cols: mx1 matrix of the column index you would like to extract from B
+# @output Y: is the output matrix contains the columns from B and the remaining columns from A
+msetcols = function(
+  matrix[double] A,
+  matrix[double] B,
+  matrix[double] cols
+) return (matrix[double] Y) {
+   ry = nrow(A)
+   cy = nrow(cols)
+   if (nrow(cols) != ncol(B)) {
+      stop("msetrows: rows and B doesn't align")
+   }
+   i = 1
+   for(r in 1:cy) {
+     col2ext = as.scalar(cols[r,1])
+     A[,col2ext] = B[,i]
+     i = i + 1
+   }
+   Y = A
+}
+
+#@TODO implement it using the multiplication by Is where Is = {I-ci, s.t. ci is all 0 for colmns to be removed} and 
+# multiply to X*Is
+# @description: It sets the specified rows from matrix B to matrix A
+# @input A: matrix whose columns need to be set
+# @input B: the matrix from which the columns will be set in A
+# @input rows: mx1 matrix of the column index you would like to extract from B
+# @output Y: is the output matrix contains the columns from B and the remaining columns from A
+msetrows = function(
+  matrix[double] A,
+  matrix[double] B,
+  matrix[double] rows
+) return (matrix[double] Y) {
+   ry = nrow(A)
+   cy = nrow(rows)
+   if (nrow(rows) != nrow(B)) {
+      stop("msetrows: rows and B doesn't align")
+   }
+   i = 1
+   for(r in 1:cy) {
+     row2ext = as.scalar(rows[r,1])
+     A[row2ext,] = B[i,]
+     i = i + 1
+   }
+   Y = A
+}
+
+# @description: It compares if two matrices are cellwise equals. It's a convenient routine
+# @input A, B: matrices to be compared
+# @output isequal: 1 if A==B else 0
+mequals = function(
+  matrix[double] A,
+  matrix[double] B
+) return (int isequal) {
+  if (nrow(A) != nrow(B) | ncol(A) != ncol(B)) {
+    isequal = 0
+  } else {
+    notequal = sum(ppred(A, B, "!="))
+    if (notequal > 0) {
+      isequal = 0
+    } else {
+      isequal =1
+    }
+  }
+}
+
+#@description: dot product of two matrix
+#  We assume that columns represent the vectors
+#@input A: the first vector or the list of vectors represented as cols of matrix .dim==(mxn)
+#@input B: the second vector or the list of vectors represented as the cols of matrix. dim == (mxr)
+#@output D: the dot product tranpose(A) %*% B. dim = (nxr)
+mdot = function(
+ matrix[double] A,
+ matrix[double] B
+) return (matrix[double] D) {
+   ra = nrow(A); ca = ncol(A)
+   rb = nrow(B); cb = ncol(B)
+
+   if (ra != rb) {
+     stop("FATAL: mdot => matrix A(" + ra + "x" + ca + ") and B(" + rb + "x" + cb + ") doesn't align")
+   }
+
+   D = t(A) %*% B
+}
+
+#include "io/io.dml"
+#dmlpp autogenerated BEGIN including '#include "io/io.dml"'
+
+#print the matrixs
+printm_raw = function(matrix[double] M) return (matrix[double] M) {
+  if (nrow(M)*ncol(M) >= 100*100) {
+     stop("print_raw => Matrix is too big to print in stdout! Aborting ... s")
+  }
+  for (i in 1:nrow(M)) {
+    for (j in 1:ncol(M)) {
+       e = as.scalar(M[i,j])
+       print(" " + i + " " + j + " " + e)
+    }
+  }
+  M = M
+}
+
+printm = function(string name, matrix[double] M) return (matrix[double] M) {
+  print("printing matrix = " + name)
+  ignore = printm_raw(M)
+  print("done printing matrix = " + name)
+  M = M
+}
+#dmlpp autogenerated END including '#include "io/io.dml"'
+#dmlpp autogenerated END including '#include "math/matrix/MatrixOps.dml"'
+#include "io/io.dml"
