@@ -1,0 +1,4 @@
+./runStandaloneSystemML.sh CsplineCG.dml -nvargs X=test/X.mtx Y=test/Y.mtx O=out/K.mtx maxi=10 inp_x=4.5 Log=out/CG.log
+
+./runStandaloneSystemML.sh CsplineDS.dml -nvargs X=test/X.mtx Y=test/Y.mtx O=out/K.mtx  inp_x=4.5
+

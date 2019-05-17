@@ -1,0 +1,11 @@
+{ 
+    "data_type": "matrix"
+    ,"value_type": "double"
+    ,"rows": 10
+    ,"cols": 1
+    ,"nnz": 10
+    ,"format": "csv"
+    ,"header": false
+    ,"sep": ","
+    ,"description": { "author": "SystemML" } 
+}

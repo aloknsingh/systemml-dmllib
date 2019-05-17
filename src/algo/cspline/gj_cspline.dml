@@ -1,0 +1,170 @@
+/*
+Assumptions: 
+ - The inputs xs are monotonically increasing, 
+ - there is no duplicates points in x
+
+Enhancemnets: 
+ - since solve use the ||Ax-b|| least sq . the better way would be guassian elimination.
+ - use the parFor in guass elim.
+
+
+*/
+getKs = function (matrix[double] X, matrix[double] Y) return (matrix[double] K) {
+    nx = nrow(X)
+    ny = nrow(Y)
+    if (nx != ny) {
+      stop("X and Y vectors are of different size")
+    }
+    n = nx
+    A = matrix(0.0, n, n+1)
+    A = matrix(0.0, n, n+1)
+
+    for (i in 2:n-1) {
+      A[i,i-1] = 1/(X[i, 1] - X[i-1, 1])
+      A[i,i] = 2 * (1/(X[i, 1] - X[i-1, 1]) + 1/(X[i+1, 1] - X[i, 1]))
+      A[i,i+1] = 1/(X[i+1, 1] - X[i, 1])
+      A[i,n+1] = 3* ( (Y[i, 1] - Y[i-1, 1])/((X[i, 1] - X[i-1, 1])*(X[i, 1] - X[i-1, 1])) + (Y[i+1, 1] - Y[i, 1])/((X[i+1, 1] - X[i, 1])*(X[i+1, 1] - X[i, 1])) )
+    }
+
+    A[1, 1] = 2/(X[2,1] - X[1,1])
+    A[1, 2] = 1/(X[2,1] - X[1,1])
+    A[1, n+1] = 3* (Y[2, 1] - Y[1, 1]) / ((X[2,1] - X[1,1])*(X[2,1] - X[1,1]))
+    
+    A[n, n-1] = 1/(X[n,1] - X[n-1,1])
+    A[n, n] = 2/(X[n,1] - X[n-1,1])
+    A[n, n + 1] = 3*(Y[n, 1] - Y[n-1, 1]) / ((X[n,1] - X[n-1,1])*(X[n,1] - X[n-1,1]))
+
+    b = matrix(0.0, n, 1)
+    K = solve(A, b) 
+
+    /*
+    print("nrow(K)="+nrow(K))
+    print("ncol(K)="+ncol(K))
+    K = X
+    */
+}
+
+evalSpline = function(double x, matrix[double] X, matrix[double] Y, matrix[double] K) return (double q) {
+  i = 1
+  while(as.scalar(X[i,1]) < x) {
+    i = i+1
+  }
+
+  t = (x - X[i-1,1]) / ( X[i,1] - X[i-1,1])
+
+  a =  K[i-1,1]*(X[i,1]-X[i-1,1]) - (Y[i,1]-Y[i-1,1])
+  b = -K[i,1]*(X[i,1]-X[i-1,1]) + (Y[i,1]-Y[i-1,1])
+
+  qm = (1-t)*Y[i-1,1] + t*Y[i,1] + t*(1-t)*(a*(1-t)+b*t)
+  q = as.scalar(qm)
+
+}
+
+
+/* doesn't work need to find out
+ERROR => Caused by: com.ibm.bi.dml.lops.LopsException: ERROR: line 50, column 2 -- Parameter min must be a literal for a Rand operation.
+	at com.ibm.bi.dml.lops.DataGen.getCPInstruction_SInit(DataGen.java:250)
+
+testSpline = function(double x, string str_xs, string str_ys, int size) return () {
+
+  xs = matrix(str_xs, rows = size, cols = 1)
+  ys = matrix(str_xs, rows = size, cols = 1)
+  
+  ks = getKs(xs, ys)
+
+  y = evalSpline(x, xs, ys, ks)
+
+  print("cspline("+x+") => "+ y)
+
+}
+
+l = testSpline(4.5, "1 2 3 4 5 6 7 8 9 10", "1 2 3 4 5 6 7 8 9 10", 10)
+*/
+
+/* test1: y = x*/
+str_xs = "1 2 3 4 5 6 7 8 9 10"
+str_ys = "1 2 3 4 5 6 7 8 9 10"
+xs = matrix(str_xs, rows = 10, cols = 1)
+ys = matrix(str_ys, rows = 10, cols = 1)
+ks = getKs(xs, ys)
+x = 4.5
+y = evalSpline(x, xs, ys, ks)
+print("{  X=["+str_xs + "]")
+print("   Y=["+str_ys + "]")
+print("   expected => 1*(x=" + x + ") = " + x)
+print("   cspline(x="+x+") => "+ y + "}")
+
+
+/* test2: y = 2x*/
+str_xs = "1 2 3 4 5 6 7 8 9 10"
+str_ys = "2 4 6 8 10 12 14 16 18 20"
+xs = matrix(str_xs, rows = 10, cols = 1)
+ys = matrix(str_ys, rows = 10, cols = 1)
+ks = getKs(xs, ys)
+x = 4.5
+y = evalSpline(x, xs, ys, ks)
+print("{  X=["+str_xs + "]")
+print("   Y=["+str_ys + "]")
+print("   equation base = " + 2*x)
+print("   expected => 2*(x=" + x + ") = " + 2*x)
+print("   cspline(x="+x+") => "+ y + "}")
+
+/* test3: y = x*x  */
+str_xs = "1 2 3 4 5 6 7 8 9 10"
+str_ys = "1 4 9 16 25 36 49 64 81 100"
+xs = matrix(str_xs, rows = 10, cols = 1)
+ys = matrix(str_ys, rows = 10, cols = 1)
+ks = getKs(xs, ys)
+x = 4.5
+y = evalSpline(x, xs, ys, ks)
+print("{  X=["+str_xs + "]")
+print("   Y=["+str_ys + "]")
+print("   equation base = " + x*x)
+print("   expected => square(x=" + x + ") = " + x*x)
+print("   cspline(x="+x+") => "+ y + "}")
+
+
+/* test4: y = log(x)  */
+str_xs = "1 2 3 4 5 6 7 8 9 10"
+str_ys = "0.0000000 0.6931472 1.0986123 1.3862944 1.6094379 1.7917595 1.9459101 2.0794415 2.1972246 2.3025851"
+
+xs = matrix(str_xs, rows = 10, cols = 1)
+ys = matrix(str_ys, rows = 10, cols = 1)
+ks = getKs(xs, ys)
+x = 4.5
+y = evalSpline(x, xs, ys, ks)
+print("{  X=["+str_xs + "]")
+print("   Y=["+str_ys + "]")
+print("   expected => log(x=" + x + ") = " + log(x))
+print("   cspline(x="+x+") => "+ y + "}")
+
+/* test5: y = sin(x)  */
+str_xs = "1 2 3 4 5 6 7 8 9 10"
+str_ys = "0.8414710  0.9092974  0.1411200 -0.7568025 -0.9589243 -0.2794155 0.6569866  0.9893582  0.4121185 -0.5440211"
+
+xs = matrix(str_xs, rows = 10, cols = 1)
+ys = matrix(str_ys, rows = 10, cols = 1)
+ks = getKs(xs, ys)
+x = 4.5
+y = evalSpline(x, xs, ys, ks)
+print("{  X=["+str_xs + "]")
+print("   Y=["+str_ys + "]")
+print("   expected => sin(x=" + x + ") = " + sin(x))
+print("   cspline(x="+x+") => "+ y + "}")
+
+
+
+
+/* test6: y = exp(x)  */
+str_xs = "1 2 3 4 5 6 7 8 9 10"
+str_ys = "2.718282 7.389056 20.085537 54.598150 148.413159 403.428793 1096.633158 2980.957987 8103.083928 22026.465795"
+
+xs = matrix(str_xs, rows = 10, cols = 1)
+ys = matrix(str_ys, rows = 10, cols = 1)
+ks = getKs(xs, ys)
+x = 4.5
+y = evalSpline(x, xs, ys, ks)
+print("{  X=["+str_xs + "]")
+print("   Y=["+str_ys + "]")
+print("   expected => exp(x=" + x + ") = " + exp(x))
+print("   predicted => cspline(x="+x+") = "+ y + "}")
